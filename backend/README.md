@@ -48,10 +48,6 @@ independent finite element script, which agreed within 2%. That script also chec
 loads: 0.1 MPa on the top face of the same beam gave a tip deflection of 1.737 mm against 1.742 mm
 from beam theory. Pressure has not been run in Ansys itself yet.
 
-To test the result screens without Ansys, start the server with `$env:FAKE_SOLVE="1"`. The
-result is made up, and the app labels it PLACEHOLDER in the warnings, the method, and the
-assumptions. Do not use it for real results.
-
 ## Things to know
 
 - Units: STEP files are read in millimeters and sent to the frontend in meters. Results go back

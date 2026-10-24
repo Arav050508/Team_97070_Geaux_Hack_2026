@@ -178,9 +178,7 @@ export function ConfirmationCard(p: Props) {
             <div className="row-main">
               <strong>{label(c.geometry_id)}</strong>
               <span className="tag">
-                {p.userPicked.has(c.geometry_id)
-                  ? "Picked by you"
-                  : `Suggested (${Math.round(c.confidence * 100)}% confidence)`}
+                {p.userPicked.has(c.geometry_id) ? "Picked by you" : "Suggested, check it"}
               </span>
             </div>
             <button className="link" onClick={() => p.onRemoveSupport(c.geometry_id)}>

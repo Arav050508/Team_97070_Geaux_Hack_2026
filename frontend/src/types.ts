@@ -138,9 +138,6 @@ export interface SimulationSpec {
   constraints: Array<{
     type: "fixed_support";
     geometry_id: string;
-    // The AI's own estimate of how sure it is, from 0 to 1. This is a guess and not
-    // proof, so the UI must never present it as certain.
-    confidence: number;
   }>;
   loads: Array<ForceLoad | PressureLoad>;
   outputs: OutputKind[];

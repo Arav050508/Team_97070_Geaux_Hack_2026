@@ -352,21 +352,20 @@ export default function App() {
       if (isLoad) return say("system", "That face carries the load, so it cannot also be a support.");
       // Clicking an existing support removes it.
       if (isSupport) return removeSupport(id);
-      // confidence: 1 because the user chose this face themselves.
       setSpec({
         ...spec,
-        constraints: [...spec.constraints, { type: "fixed_support", geometry_id: id, confidence: 1 }],
+        constraints: [...spec.constraints, { type: "fixed_support", geometry_id: id }],
       });
     } else {
       if (isSupport) return say("system", "That face is a support, so it cannot also carry the load.");
-      // Move the existing load to the new face, or create a 2000 N load pointing down.
+      // Move the existing load to the new face, or create a load with no force yet. The user has to enter the number.
       const existing = spec.loads[0];
       setSpec({
         ...spec,
         loads: [
           existing
             ? { ...existing, geometry_id: id }
-            : { type: "force", geometry_id: id, magnitude_N: 2000, direction: [0, -1, 0] },
+            : { type: "force", geometry_id: id, magnitude_N: 0, direction: [0, 0, -1] },
         ],
       });
     }

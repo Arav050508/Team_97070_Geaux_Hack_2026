@@ -19,7 +19,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 import uuid
 from pathlib import Path
@@ -142,20 +141,22 @@ def interpret_placeholder(body: dict, model: dict) -> dict:
         load["mass_kg"] = mass
         load["magnitude_N"] = mass * gravity
     else:
-        load["magnitude_N"] = force if force is not None else 2000.0
+        # No number in the request: leave the force at 0 so the app asks for it. Never invent one.
+        load["magnitude_N"] = force if force is not None else 0.0
 
     return {
         "spec": {
             "analysis_type": "fea",
             "units": "SI",
             "material": {"name": "aluminum_6061_t6", "source": "ai_assumed"},
-            "constraints": [{"type": "fixed_support", "geometry_id": bottom["id"], "confidence": 0.5}],
+            "constraints": [{"type": "fixed_support", "geometry_id": bottom["id"]}],
             "loads": [load],
             "outputs": ["von_mises_stress", "displacement", "safety_factor"],
         },
         "assistant_message": (
             "Placeholder rules, not the AI yet: I fixed the lowest flat face and pushed down on the "
             "highest one. Check both on the model and change them if they are wrong."
+            + ("" if (mass is not None or force is not None) else " I did not find a force or mass in your request, so enter the load on the card.")
         ),
         "clarifications": [],
         "pressure_face_ids": [],
@@ -198,31 +199,6 @@ def _error_result(message: str) -> dict:
     }
 
 
-def _fake_result(model: dict) -> dict:
-    """
-    A made-up result, ONLY for testing the screens before Ansys works. It is used only when the
-    server is started with FAKE_SOLVE=1, and it says "PLACEHOLDER" everywhere it shows up. Never
-    use it in the demo.
-    """
-    counts = model["vertex_counts"]
-    return {
-        "status": "ok",
-        "warnings": ["PLACEHOLDER RESULT: these numbers are made up for testing. No analysis ran."],
-        "max_von_mises_MPa": 150.0,
-        "max_displacement_mm": 1.0,
-        "safety_factor": 1.84,
-        "yield_MPa": 276.0,
-        "verdict": "pass",
-        "method": "PLACEHOLDER (no analysis ran)",
-        "hand_check": [],
-        "fields": {
-            "von_mises_MPa": {fid: [75.0] * n for fid, n in counts.items()},
-            "displacement_mm": {fid: [0.5] * n for fid, n in counts.items()},
-        },
-        "assumptions": ["PLACEHOLDER: no analysis ran."],
-    }
-
-
 @app.post("/api/solve")
 def solve(body: dict) -> dict:
     """Runs the confirmed setup and returns the result for an imported model."""
@@ -230,8 +206,6 @@ def solve(body: dict) -> dict:
     if model is None:
         return _error_result("The backend does not have that model. Import the STEP file again.")
     spec = body.get("spec") or {}
-    if os.environ.get("FAKE_SOLVE") == "1":
-        return _fake_result(model)
     try:
         return run_ansys(spec, model)
     except AnalysisError as e:
