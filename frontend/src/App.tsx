@@ -17,6 +17,7 @@
 // React note: useState gives a value plus a function to change it. Calling that function
 // redraws the component with the new value. Never change a state value directly.
 
+import { SAFETY_BAND } from "./data/safetyBand";
 import { useMemo, useState } from "react";
 import { USE_MOCK, interpret, loadPart, solve } from "./api";
 import { ConfirmationCard, type PickMode } from "./components/ConfirmationCard";
@@ -73,7 +74,7 @@ export default function App() {
   const [pressureFaces, setPressureFaces] = useState<string[]>([]);
   // Typed text, so the field can be empty or half-typed.
   const [cabinPressureKPa, setCabinPressureKPa] = useState("");
-  const [minSafetyFactor, setMinSafetyFactor] = useState("2");
+  const [minSafetyFactor, setMinSafetyFactor] = useState(String(SAFETY_BAND.min));
   // The AI's multiple-choice questions, and the user's answers keyed by question id.
   const [clarifications, setClarifications] = useState<Clarification[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});

@@ -9,6 +9,7 @@
 // The "Confirm and check design" button stays disabled until the `problems` list below is
 // empty, so a bad setup can never reach the solver.
 
+import { SAFETY_BAND } from "../data/safetyBand";
 import { CABIN_ATMOSPHERES, kPaToPsia, psiaToKPa } from "../data/cabinAtmospheres";
 import type { Environment } from "../data/environments";
 import { MATERIALS, getMaterial } from "../data/materials";
@@ -296,7 +297,7 @@ export function ConfirmationCard(p: Props) {
             onChange={(e) => p.onMinSafetyFactor(e.target.value)}
           />
         </label>
-        <span className="tag">Your own target, not a code requirement</span>
+        <span className="tag">Acceptable band: {SAFETY_BAND.min} to {SAFETY_BAND.max}</span>
       </div>
 
       {/* Multiple-choice questions from the AI. An option marked unsupported is shown but

@@ -6,6 +6,9 @@ the surfaces it picked, and after the user confirms it checks the part against t
 yield strength and reports a safety factor with a hand calculation.
 
 It runs fully in the browser (demo mode), so it works before the AI and backend pieces exist.
+In that mode the two built-in parts are checked with textbook formulas. The intended full path
+sends an imported CAD model and the confirmed parameters to an Ansys analysis on the backend.
+The browser solver stays as the fallback demo.
 
 ## Run
 
@@ -47,8 +50,9 @@ and are checked by an independent Python script (see "Checking the formulas").
 | Hatch, simply supported rim | Same plate, rim free to rotate | `3·(3+ν)·q·a² / (8·t²)` at the center | `(5+ν)·q·a⁴ / (64·(1+ν)·D)` |
 
 Safety factor = yield strength ÷ peak von Mises stress. Verdict: **fail** below 1, **below
-target** between 1 and the user's own target (default 2), **pass** at or above it. The target is
-the user's choice, not a code requirement.
+target** between 1 and the target (default 1.4), **pass** at or above it. The team treats 1.4 to 2
+as the acceptable band (`src/data/safetyBand.ts`), and the results card notes when a pass is above
+2, since the part is then heavier than needed. The band is the team's requirement, not a code.
 
 The recommender (`src/solver/recommend.ts`) adds no formulas of its own. Each option it shows is
 the same solver run at another thickness or material, so any row can be reproduced by hand. Its

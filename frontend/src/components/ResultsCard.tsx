@@ -5,6 +5,7 @@
 // Like ConfirmationCard, this component keeps no state. The result and the current view come
 // in as props, and button clicks go back out through callbacks.
 
+import { SAFETY_BAND } from "../data/safetyBand";
 import { cssGradient } from "../colormap";
 import { USE_MOCK } from "../api";
 import type { DesignOption, Recommendation } from "../solver/recommend";
@@ -94,6 +95,14 @@ export function ResultsCard({
             {result.yield_MPa.toFixed(0)} MPa yield ÷ {result.max_von_mises_MPa.toFixed(0)} MPa peak stress
             · your target {targetSafetyFactor}
           </div>
+          {/* Above the top of the acceptable band the part is stronger than needed, which
+              means extra mass. Say so instead of calling it a plain pass. */}
+          {result.verdict === "pass" && result.safety_factor > SAFETY_BAND.max && (
+            <div className="verdict-sub">
+              Above the {SAFETY_BAND.max} top of the acceptable band. The part is stronger than it needs to be
+              and could be lighter.
+            </div>
+          )}
         </div>
       )}
 

@@ -25,9 +25,11 @@ Team 97070, prompt TODO: add the prompt number from the Devpost page.
 
 Our prompt was to build something that helps humans sustain life in extreme off-Earth environments. A habitat only keeps people alive if its structure holds. Equipment hangs from brackets that weigh less on the Moon than on Mars, and every hatch has cabin air pushing out on one side and almost nothing pushing back on the other.
 
-Habitat Structure Copilot is a screening tool for those two cases. You pick a part (an equipment bracket or a round hatch plate), choose Moon or Mars, and type what you want to test, for example "Fix the two mounting holes and hang a 500 kg equipment rack from the end pad." The app proposes a setup and highlights the surfaces it chose on a 3D model. You check it, fix anything wrong, and confirm. It then calculates the peak stress, divides the material's yield strength by it to get a safety factor, and says pass, below your target, or fail. The hand calculation is shown line by line so anyone can redo it with a calculator.
+Habitat Structure Copilot helps an engineer set up and judge a structural check for a part in a habitat. The intended flow is to import a CAD model of the part, choose Moon or Mars, and describe the test in plain English, for example "Fix the two mounting holes and hang a 500 kg equipment rack from the end pad." The AI asks for the parameters a finite element analysis needs, such as force magnitude and direction, where the force acts, which faces are fixed, the material, and any pressure. The app highlights the surfaces it chose on a 3D model, you check and fix them, and you confirm. The analysis then runs in Ansys through its API (TODO: confirm with the backend team before submission), and the app shows the stress on the model and a safety factor. A safety factor is yield strength divided by peak stress. We treat 1.4 to 2 as acceptable: below 1.4 is a fail, and above 2 the part is heavier than it needs to be.
 
-After a check, the app also reruns the same formulas at every allowed thickness and for both materials, draws a bar chart of safety factor against thickness, and suggests the lightest design that meets your target.
+The frontend also includes two built-in parts, an equipment bracket and a round hatch plate, with a solver that runs in the browser using textbook formulas. It works without a backend, so it is the fallback demo. In that mode the app shows the hand calculation line by line.
+
+In the fallback demo, the app also reruns the formulas at every allowed thickness and for both materials, draws a bar chart of safety factor against thickness, and suggests the lightest design that meets your target. This is not part of the Ansys path, which would need many analysis runs.
 
 The results also say what the verdict means for the crew. For the hatch, the app compares your cabin pressure with the range NASA's technical brief gives for indefinite crew exposure (above 5.0 and up to 15.0 psia), and states how far below that range the cabin would fall if the hatch failed. These sentences are fixed text filled in from the verdict and your inputs, not AI output.
 
@@ -35,8 +37,8 @@ A few choices worth knowing about:
 
 - Weight is mass times the destination's gravity (Moon 1.62 m/s², Mars 3.73 m/s²), so the same 500 kg rack loads the bracket about 2.3 times harder on Mars.
 - The hatch sees cabin pressure minus the destination's outside pressure. There is no default cabin pressure. You can pick a NASA-published value (an ISS-type cabin at 14.7 psia, or the recommended 8.0 psia for a lunar habitat and 7.6 psia for a Mars habitat) or enter your own.
-- The AI step only picks surfaces and reads numbers you wrote. Gravity, outside pressure, the material values, and the safety factor all come from data files and formulas, never from the AI.
-- This is a screening estimate, not a certification. It uses textbook closed-form formulas and leaves out stress concentrations at holes, bolts and contact, buckling, fatigue, and temperature. Every result lists these assumptions.
+- The AI step only picks surfaces and reads numbers you wrote. Gravity and outside pressure come from NASA data files, material values come from datasheets, and loads come from your input. The safety factor comes from the solver, never from the AI.
+- The fallback demo is a screening estimate, not a certification. It uses textbook closed-form formulas and leaves out stress concentrations at holes, bolts and contact, buckling, fatigue, and temperature, and its results list these assumptions. The Ansys analysis is meant to cover stress concentrations and contact. TODO: list what the Ansys model includes and leaves out.
 
 **External tools and APIs.** The only external API is planned to be one LLM call (limit is 2): TODO: name the provider and model once the backend is wired up. Moon and Mars conditions are bundled in `frontend/src/data/environments.ts` from the NASA [Moon](https://nssdc.gsfc.nasa.gov/planetary/factsheet/moonfact.html) and [Mars](https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html) fact sheets. They are planetary reference values, not live data, so they use no API. Cabin pressures come from two NASA documents: the [NASA-STD-3001 Technical Brief on habitable atmosphere](https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-003-habitable-atmosphere.pdf) (14.7 psia ISS cabin, and the crew exposure range) and the [Exploration Atmospheres Working Group report, NASA/TP-2010-216134](https://www.nasa.gov/wp-content/uploads/2023/03/henninger-8.2-34-atm-tp216134-2010.pdf) (8.0 psia lunar and 7.6 psia Mars habitats). The 3D view uses the open-source libraries React and three.js.
 
@@ -69,7 +71,7 @@ To check that it type-checks and builds, run `npm run build`.
 
 ## Extras
 
-How the checks work:
+How the fallback demo's checks work:
 
 | Part | Model | Peak stress |
 | --- | --- | --- |
@@ -77,6 +79,6 @@ How the checks work:
 | Hatch, clamped rim | Circular plate, uniform pressure | `3·q·a² / (4·t²)` at the edge |
 | Hatch, simply supported rim | Same plate, rim free to rotate | `3·(3+ν)·q·a² / (8·t²)` at the center |
 
-Safety factor is yield strength divided by peak von Mises stress. Below 1 is a fail. At or above the target you set (default 2) is a pass. The target is your own, not a code requirement.
+Safety factor is yield strength divided by peak von Mises stress. Below 1 is a fail, 1 up to the target (default 1.4) is below target, and the target or higher passes. The app adds a note when the factor is above 2, since the part is then heavier than needed. The 1.4 to 2 band is the team's own requirement, not a code.
 
 The formulas are checked by an independent Python script: `frontend/scripts/check_formulas.py` recomputes the numbers on its own and confirms with finite differences that the plate's moment formulas agree with its deflection formulas. The steps to run it are in `frontend/README.md`, which also has the file-by-file guide and a reading order for newcomers.
