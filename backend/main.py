@@ -19,12 +19,20 @@
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import uuid
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+
+from google import genai
+from google.genai import types
 
 from ansys_solver import AnalysisError, analyze
 from step_import import StepImportError, build_geometry
@@ -52,6 +60,34 @@ MODELS: dict[str, dict] = {}
 
 # STEP files bigger than this are refused. The frontend has the same limit.
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+
+# Material constants
+# These must match the IDs in frontend/src/data/materials.ts
+MATERIALS = ["aluminum_6061_t6", "steel_a36"]
+
+# AI Configurations
+SYSTEM_PROMPT = """You provide a structural analysis. Choose faces ONLY from the list given.
+
+Do not invent or change gravity, pressures, material properties, or safety factors. If the user provides a mass, return mass_kg and leave force_N null.
+
+The environment uses a coordinate system where Z is the vertical axis and X/Y are the horizontal axes
+"""
+
+RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "fixed_face_ids": {"type": "array", "items": {"type": "string"}},
+        "load_face_id": {"type": "string"},
+        "direction": {"type": "array", "items": {"type": "number"}},
+        "mass_kg": {"type": "number", "nullable": True},
+        "force_N": {"type": "number", "nullable": True},
+        "material": {"type": "string", "enum": MATERIALS},
+        "pressure_face_ids": {"type": "array", "items": {"type": "string"}},
+        "stated_cabin_pressure_kPa": {"type": "number", "nullable": True},
+        "assistant_message": {"type": "string"},
+    },
+    "required": ["fixed_face_ids", "load_face_id", "direction", "assistant_message"],
+}
 
 
 @app.get("/api/health")
@@ -116,6 +152,76 @@ def _parse_load(prompt: str) -> tuple[float | None, float | None]:
         return float(mass.group(1)), None
     return None, None
 
+def _to_interpret_response(raw: dict, body: dict, model: dict) -> dict:
+    """
+    Turns AI response into a format usable by the frontend
+    """
+    valid_ids = {f["id"] for f in model["faces"] if f["candidate"]}
+    fixed = [i for i in raw["fixed_face_ids"] if i in valid_ids]
+
+    gravity = float(body.get("environment", {}).get("gravity_m_s2", 0) or 0)
+    load_face = raw["load_face_id"]
+
+    if not fixed or load_face not in valid_ids:
+        raise ValueError("Gemini halucinating")
+
+    # normalizing direction
+    d = raw["direction"]
+    n = sum(c * c for c in d) ** 0.5 or 1.0
+    direction = [c / n for c in d]
+
+    load = {"type": "force", "geometry_id": load_face, "direction": direction}
+    if raw.get("mass_kg") is not None:
+        load["mass_kg"] = raw["mass_kg"]
+        load["magnitude_N"] = raw["mass_kg"] * gravity
+    else:
+        # No force in the answer: leave it at 0 so the app asks for it. Never invent one.
+        load["magnitude_N"] = raw.get("force_N") or 0.0
+
+    # Get material or use default if not valid
+    material = raw.get("material")
+    if material not in MATERIALS:
+        material = "aluminum_6061_t6"
+
+    return {
+        "spec": {
+            "analysis_type": "fea",
+            "units": "SI",
+            "material": {"name": material, "source": "ai_assumed"},
+            "constraints": [{"type": "fixed_support", "geometry_id": i} for i in fixed],
+            "loads": [load],
+            "outputs": ["von_mises_stress", "displacement", "safety_factor"],
+        },
+        "assistant_message": raw["assistant_message"],
+        "clarifications": [],
+        "pressure_face_ids": [i for i in raw.get("pressure_face_ids", []) if i in valid_ids],
+        "stated_cabin_pressure_kPa": raw.get("stated_cabin_pressure_kPa")
+    }
+
+def interpret_with_gemini(body: dict, model: dict) -> dict:
+    """
+    Actual Gemini implementation for the interpreter. 
+
+    Requires GEMINI_MODEL to be set in the .env (defaults to gemini-3.8-flash)
+    """
+    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+    faces = [f for f in model["faces"] if f["candidate"]]
+
+    response = client.models.generate_content(
+        model=os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
+        contents="Request: {}\nFaces: {}".format(body["prompt"], json.dumps(faces)),
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            response_mime_type="application/json",
+            response_schema=RESPONSE_SCHEMA,
+            temperature=0
+        )
+    )
+
+    raw_response = json.loads(response.text)
+
+    return _to_interpret_response(raw_response, body, model)
 
 def interpret_placeholder(body: dict, model: dict) -> dict:
     """
@@ -170,7 +276,13 @@ def interpret(body: dict) -> dict:
     model = MODELS.get(body.get("model_id") or "")
     if model is None:
         raise HTTPException(404, "The backend does not have that model. Import the STEP file again.")
-    return interpret_placeholder(body, model)
+    try:
+        return interpret_with_gemini(body, model)
+    except Exception as e:
+        # Gemini is down, the key is missing, or it named a face that does not exist. Fall back
+        # to the fixed rules. They say plainly that they are rules and not the AI.
+        print(f"[interpret] Gemini failed, using the placeholder rules: {e}", flush=True)
+        return interpret_placeholder(body, model)
 
 
 # ---------- solve ----------

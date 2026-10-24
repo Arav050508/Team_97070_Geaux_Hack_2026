@@ -27,7 +27,7 @@ A habitat keeps people alive only if its structure holds. Equipment hangs from m
 
 SimForge does that setup with you. You import a STEP file of the part, type where it will be used, and describe the test in plain English, for example "Fix the bottom face and hang a 500 kg rack from the top." The app proposes which faces are fixed and loaded, the force and its direction, the material, and any pressure, and it colors those faces on the 3D model. You check every choice, change what is wrong, and confirm. Only then does the analysis run, and the app shows the stress on the model and a safety factor (yield strength divided by peak stress). The team's acceptable band is 1.4 to 2. Below 1 the part yields, between 1 and 1.4 it holds but with too little margin, and above 2 it is heavier than it needs to be. The 1.4 to 2 band is our own requirement, not a building code.
 
-The STEP import and the analysis run on a small Python backend in `backend/`. It reads the STEP file with Open CASCADE, fills the part with 10-node tetrahedra using gmsh, and runs a linear static analysis in Ansys Mechanical APDL through PyMAPDL (tested with Ansys Student 2025 R2). The AI step is not connected yet. For now, fixed rules propose the faces (the lowest flat face is fixed and the highest one is loaded), and the chat says so plainly. Either way, you check and change every face before anything runs. TODO: replace the rules with the LLM call, or keep this paragraph as is if the step stays rule based.
+The STEP import and the analysis run on a small Python backend in `backend/`. It reads the STEP file with Open CASCADE, fills the part with 10-node tetrahedra using gmsh, and runs a linear static analysis in Ansys Mechanical APDL through PyMAPDL (tested with Ansys Student 2025 R2). Google Gemini reads your request and proposes the faces. If the Gemini call fails, fixed rules take over (the lowest flat face is fixed and the highest one is loaded), and the chat says so plainly. Either way, you check and change every face before anything runs. If your request has no force or mass, the load stays at 0 until you enter it.
 
 The app needs the backend for everything, including importing a part. Nothing is solved in the browser.
 
@@ -44,7 +44,7 @@ How the app handles the off-Earth conditions:
 
 ### External tools and APIs
 
-The only external API planned is one LLM call (the limit is 2). TODO: name the provider and model once it is connected.
+The only external API is one LLM call, to Google's Gemini API through the `google-genai` package, to propose the faces and read the numbers in your request. The model is set by `GEMINI_MODEL` in `backend/.env`. TODO: write the exact model name here once the team confirms it.
 
 The analysis uses Ansys Student 2025 R2, installed on the computer that runs the backend and driven through PyMAPDL. It runs locally, not as a web API. The backend also uses the open-source libraries FastAPI, gmsh, and Open CASCADE (through `cadquery-ocp`).
 

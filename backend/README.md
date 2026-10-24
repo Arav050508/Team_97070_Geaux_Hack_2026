@@ -3,6 +3,12 @@
 A small FastAPI server for the frontend. It imports STEP files, proposes the test setup, and
 solves it in Ansys.
 
+## Setup
+
+Rename `.env.example` to `.env` and populate it with your actual Google Gemini API key and preferred model.
+
+If a model is not set, it will default to `gemini-3.8-flash`.
+
 ## Run
 
 ```powershell
@@ -25,7 +31,7 @@ Check the server with http://localhost:8000/api/health.
 | Endpoint | Status |
 | --- | --- |
 | `POST /api/import-step` | Works. Reads the STEP file with Open CASCADE (`cadquery-ocp`), meshes each face for display, and returns ids, labels, areas, centers, normals, and triangles in meters. |
-| `POST /api/interpret` | Placeholder. Fixed rules, not an AI: the lowest flat face (in Z) is fixed and the highest flat face is pushed along -Z. It only reads a number with kg, N, or kN. Replace `interpret_placeholder` in `main.py` with the LLM call. |
+| `POST /api/interpret` | Calls Google Gemini (`interpret_with_gemini` in `main.py`) to pick the fixed and loaded faces from the request. Gemini only picks faces and reads numbers you wrote. If the call fails, the backend falls back to fixed rules (`interpret_placeholder`): the lowest flat face is fixed and the highest is pushed along -Z, and the chat says so. A load with no number in the request stays at 0 until you enter it. |
 | `POST /api/solve` | Runs the analysis in Ansys Mechanical APDL (`ansys_solver.py`). Needs Ansys installed on this computer (Ansys Student works). |
 
 How the solve works: gmsh fills the part with 10-node tetrahedra (Ansys element SOLID187), each
