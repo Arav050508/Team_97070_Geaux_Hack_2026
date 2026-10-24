@@ -102,7 +102,11 @@ to a mass load:
 ## Placeholders to cite before submission
 
 - `src/data/materials.ts`: yield, modulus, Poisson's ratio, and density are typical handbook
-  values entered from general knowledge. Check each against a datasheet and add the link here.
+  values. Sources: [Proto Labs 6061-T6 data sheet](https://www.protolabs.com/media/h54d0gnp/2026-026-cnc-material-data-sheet_aluminum-6061-t651_t6.pdf)
+  (yield 276 MPa, density 2.70 g/cm³, modulus 68.3 GPa), [6061 aluminium alloy](https://en.wikipedia.org/wiki/6061_aluminium_alloy)
+  (Poisson's ratio 0.33), and [A36 steel](https://en.wikipedia.org/wiki/A36_steel) (yield 250 MPa from
+  AISC, modulus 200 GPa from MatWeb, Poisson's ratio 0.26). The app uses 68.9 GPa for 6061 and
+  7850 kg/m³ for A36, which are common handbook figures that differ from those pages by about 1%.
 - Cabin pressure presets are cited in `src/data/cabinAtmospheres.ts` (NASA-STD-3001 Technical
   Brief OCHMO-TB-003 for 14.7 psia, and NASA/TP-2010-216134 for 8.0 and 7.6 psia). The 5.0 to 15.0
   psia crew exposure range also comes from OCHMO-TB-003. The example prompt's 101 kPa is the ISS-type value

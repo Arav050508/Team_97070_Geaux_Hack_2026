@@ -1,10 +1,16 @@
 // Material properties the formulas need.
 //
-// These are PLACEHOLDERS. They are typical handbook numbers for each alloy, entered from
-// general engineering knowledge and not looked up in a datasheet yet. Before submitting,
-// check each value against a datasheet (for example MatWeb or ASM) and put the link in the
-// README. Real values vary with the temper and the supplier. None of these include a
-// correction for temperature.
+// These are typical handbook numbers for each alloy. Real values vary with the temper, the
+// product form, and the supplier, and sources differ by about 1% on stiffness, so treat them as
+// typical, not guaranteed. None include a correction for temperature. Where each one was
+// checked (see the README for the links):
+//   Aluminum 6061-T6: yield 276 MPa and density 2.70 g/cm3 match the Proto Labs data sheet.
+//     Modulus is 68.9 GPa here. Proto Labs lists 68.3 GPa and other sources say 69 GPa.
+//     Poisson's ratio 0.33 is the common handbook value (it is not on the Proto Labs sheet).
+//   A36 steel: yield 250 MPa (AISC, for plates up to 8 in), modulus 200 GPa, and Poisson's
+//     ratio 0.26 are the values listed on the A36 Wikipedia page, which cites AISC, MatWeb,
+//     and Bushwick Metals for them. Density 7850 kg/m3 is the usual figure for structural
+//     steel (that page rounds it to 7.8 g/cm3).
 
 // The ids the rest of the app uses to refer to a material.
 export type MaterialId = "aluminum_6061_t6" | "steel_a36";
