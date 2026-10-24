@@ -594,7 +594,11 @@ export default function App() {
         <div className="progress">
           <div />
         </div>
-        <p className="fineprint">Applying conditions and working through the formulas.</p>
+        <p className="fineprint">
+          {geometry?.part_id === "imported"
+            ? "Meshing the part and running the analysis in Ansys. The first run also starts Ansys, so it can take a minute."
+            : "Applying conditions and working through the formulas."}
+        </p>
       </section>
     );
   } else if (stage === "results" && result) {
@@ -634,7 +638,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1>Habitat Structure Copilot</h1>
+        <h1>SimForge</h1>
         <span className="topbar-sub">Import it. Describe it. Confirm it. Check it on any world.</span>
         {USE_MOCK && <span className="badge-mock">Demo mode</span>}
       </header>

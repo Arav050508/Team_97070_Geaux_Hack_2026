@@ -1,0 +1,13 @@
+# Install with:  pip install -r requirements.txt
+fastapi
+uvicorn[standard]
+# Lets FastAPI read uploaded files (the STEP import).
+python-multipart
+pydantic
+numpy
+# The CAD engine (Open CASCADE for Python). Reads STEP files and meshes their faces.
+cadquery-ocp
+# Fills the part with tetrahedra for the analysis.
+gmsh
+# Talks to Ansys Mechanical APDL from Python. Ansys itself is installed separately.
+ansys-mapdl-core

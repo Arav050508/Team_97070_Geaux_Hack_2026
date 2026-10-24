@@ -239,8 +239,14 @@ export function Viewport(props: ViewportProps) {
       return;
     }
 
-    // A bounding box that grows to hold every face. We use it to aim the camera.
-    const box = new THREE.Box3();
+    // CAD programs usually treat Z as up, while this viewer treats Y as up. Turn imported parts
+    // a quarter turn about X so the file's +Z points up on screen. This only changes the
+    // drawing: the face positions, force directions, and results all stay in the file's own
+    // coordinates. The arrows group turns the same way so arrows stay attached to their faces.
+    const zUp = props.geometry.part_id === "imported";
+    ctx.faces.rotation.x = zUp ? -Math.PI / 2 : 0;
+    ctx.arrows.rotation.x = zUp ? -Math.PI / 2 : 0;
+
     for (const face of props.geometry.faces) {
       const geo = new THREE.BufferGeometry();
       const pos = new Float32Array(face.positions);
@@ -248,8 +254,6 @@ export function Viewport(props: ViewportProps) {
       // One color per corner (3 numbers each). Starts all zero and is filled in by effect 3.
       geo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(pos.length), 3));
       geo.computeVertexNormals(); // needed for the lighting to work
-      geo.computeBoundingBox();
-      if (geo.boundingBox) box.union(geo.boundingBox);
 
       // vertexColors means "use the color attribute above". DoubleSide draws both sides of
       // each triangle, so a face is visible even if its triangles point the wrong way.
@@ -268,6 +272,11 @@ export function Viewport(props: ViewportProps) {
       mesh.add(edges);
       ctx.faces.add(mesh);
     }
+
+    // A box around the whole part as it appears on screen (after the turn above). We use it to
+    // aim the camera and to place the grid.
+    ctx.faces.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(ctx.faces);
 
     // Move the camera only when the user switches to a different part. If it moved every
     // time the thickness changed, the view would jump while they type.
@@ -326,13 +335,22 @@ export function Viewport(props: ViewportProps) {
     const ctx = ctxRef.current;
     if (!ctx) return;
     disposeGroup(ctx.arrows);
+    // Size the arrows to the part: a quarter of the part's overall size. A fixed size looked
+    // tiny on a big part and swallowed a small one (the 100 mm sample beam).
+    const box = new THREE.Box3();
+    for (const f of props.geometry?.faces ?? []) {
+      for (let i = 0; i < f.positions.length; i += 3) {
+        box.expandByPoint(new THREE.Vector3(f.positions[i], f.positions[i + 1], f.positions[i + 2]));
+      }
+    }
+    const size = box.isEmpty() ? 0.28 : box.getSize(new THREE.Vector3()).length();
+    const length = size * 0.25;
     for (const a of props.arrows) {
       const dir = new THREE.Vector3(...a.dir).normalize();
-      const length = 0.07; // 70 mm
       // The arrow is drawn from its tail, so back up from the tip against the direction.
       const origin = new THREE.Vector3(...a.tip).addScaledVector(dir, -length);
       // Arguments: direction, origin, length, color, head length, head width.
-      ctx.arrows.add(new THREE.ArrowHelper(dir, origin, length, 0xf59e0b, 0.025, 0.015));
+      ctx.arrows.add(new THREE.ArrowHelper(dir, origin, length, 0xf59e0b, length * 0.3, length * 0.18));
     }
   }, [props.arrows, props.geometry]);
 

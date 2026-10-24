@@ -1,0 +1,5 @@
+# The Python virtual environment, local secrets, uploaded STEP files, and Python caches.
+.venv/
+.env
+uploads/
+__pycache__/

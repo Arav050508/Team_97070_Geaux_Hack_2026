@@ -1,4 +1,4 @@
-# Habitat Structure Copilot: frontend
+# SimForge: frontend
 
 React + TypeScript + Three.js. The user imports a STEP file or picks a sample part, types where
 the part will be used, and describes a load or pressure in plain English. The app proposes a
@@ -33,6 +33,8 @@ forwards every `/api` request to port 8000 (`vite.config.ts`).
 2. Describe the test in plain English, for example "Fix the bottom face and hang a 500 kg rack
    from the top."
 3. Check the proposal on the confirmation card. Hover a row to light up its face on the model.
+   An imported part is turned so its CAD +Z axis points up on screen (most CAD programs use Z as
+   up), and for those parts the direction menu calls -Z "Down". This only changes the drawing.
    You can change the load and its direction (six axis directions or a custom vector), the
    material, the pressure, and the target safety factor. Faces can be picked by clicking the
    model or from the "choose from a list" menus, so the whole setup works from the keyboard.

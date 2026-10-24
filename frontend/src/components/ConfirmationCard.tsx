@@ -58,23 +58,22 @@ interface Props {
   onRun: () => void;
 }
 
-/** Turns a direction vector into words, for example [0, -1, 0] into "downward (-Y)". */
-function describeDirection(d: Vec3): string {
-  const names: Array<[Vec3, string]> = [
-    [[0, -1, 0], "downward (-Y)"],
-    [[0, 1, 0], "upward (+Y)"],
-    [[1, 0, 0], "along +X"],
-    [[-1, 0, 0], "along -X"],
-    [[0, 0, 1], "along +Z"],
-    [[0, 0, -1], "along -Z"],
-  ];
-  const hit = names.find(([v]) => v[0] === d[0] && v[1] === d[1] && v[2] === d[2]);
-  // For any direction not in the list, just show the raw numbers.
-  return hit ? hit[1] : `[${d.join(", ")}]`;
+/**
+ * Turns a direction vector into words, for example [0, -1, 0] into "down (-Y)". Uses the same
+ * labels as the direction menu, so `zUp` is true for imported parts.
+ */
+function describeDirection(d: Vec3, zUp: boolean): string {
+  const hit = (zUp ? Z_UP_PRESETS : Y_UP_PRESETS).find(
+    ({ v }) => v[0] === d[0] && v[1] === d[1] && v[2] === d[2],
+  );
+  // For any direction not in the list, show the raw numbers.
+  return hit ? hit.label.toLowerCase() : `[${d.join(", ")}]`;
 }
 
-// The six axis directions offered in the direction menu, in the order they appear.
-const DIRECTION_PRESETS: Array<{ key: string; label: string; v: Vec3 }> = [
+// The six axis directions offered in the direction menu. The sample parts use Y as up. An
+// imported CAD file usually uses Z as up (the viewer turns it so Z points up on screen), so for
+// those the words "Down" and "Up" go with -Z and +Z instead.
+const Y_UP_PRESETS: Array<{ key: string; label: string; v: Vec3 }> = [
   { key: "-y", label: "Down (-Y)", v: [0, -1, 0] },
   { key: "+y", label: "Up (+Y)", v: [0, 1, 0] },
   { key: "+x", label: "Along +X", v: [1, 0, 0] },
@@ -82,10 +81,18 @@ const DIRECTION_PRESETS: Array<{ key: string; label: string; v: Vec3 }> = [
   { key: "+z", label: "Along +Z", v: [0, 0, 1] },
   { key: "-z", label: "Along -Z", v: [0, 0, -1] },
 ];
+const Z_UP_PRESETS: Array<{ key: string; label: string; v: Vec3 }> = [
+  { key: "-z", label: "Down (-Z)", v: [0, 0, -1] },
+  { key: "+z", label: "Up (+Z)", v: [0, 0, 1] },
+  { key: "+x", label: "Along +X", v: [1, 0, 0] },
+  { key: "-x", label: "Along -X", v: [-1, 0, 0] },
+  { key: "+y", label: "Along +Y", v: [0, 1, 0] },
+  { key: "-y", label: "Along -Y", v: [0, -1, 0] },
+];
 
 /** The menu key for a direction: a preset key, or "custom" for anything else. */
 function directionKey(d: Vec3): string {
-  const hit = DIRECTION_PRESETS.find(({ v }) => v[0] === d[0] && v[1] === d[1] && v[2] === d[2]);
+  const hit = Y_UP_PRESETS.find(({ v }) => v[0] === d[0] && v[1] === d[1] && v[2] === d[2]);
   return hit ? hit.key : "custom";
 }
 
@@ -102,6 +109,7 @@ export function ConfirmationCard(p: Props) {
   const isImported = p.geometry.part_id === "imported";
   const showLoad = !isHatch;
   const showPressure = isHatch || isImported;
+  const directionPresets = isImported ? Z_UP_PRESETS : Y_UP_PRESETS;
   const material = getMaterial(p.spec.material.name);
   // The user can enter the load as a mass (kg) or as a force (N). A load that carries a
   // mass_kg value is shown in kg.
@@ -195,7 +203,7 @@ export function ConfirmationCard(p: Props) {
               <span className="tag">
                 {p.userPicked.has(c.geometry_id)
                   ? "Picked by you"
-                  : `AI estimate ${Math.round(c.confidence * 100)}%`}
+                  : `Suggested (${Math.round(c.confidence * 100)}% confidence)`}
               </span>
             </div>
             <button className="link" onClick={() => p.onRemoveSupport(c.geometry_id)}>
@@ -225,7 +233,7 @@ export function ConfirmationCard(p: Props) {
           <div {...rowProps(load.geometry_id)}>
             <div className="row-main">
               <strong>{label(load.geometry_id)}</strong>
-              <span className="tag">{describeDirection(load.direction)}</span>
+              <span className="tag">{describeDirection(load.direction, isImported)}</span>
               {p.userPicked.has(load.geometry_id) && <span className="tag">Picked by you</span>}
             </div>
             <label className="inline">
@@ -252,13 +260,13 @@ export function ConfirmationCard(p: Props) {
                 value={customDirection ? "custom" : directionKey(load.direction)}
                 aria-label="Force direction"
                 onChange={(e) => {
-                  const hit = DIRECTION_PRESETS.find((d) => d.key === e.target.value);
+                  const hit = directionPresets.find((d) => d.key === e.target.value);
                   // "Custom" keeps the current numbers so the user can edit them below.
                   setCustomDirection(!hit);
                   if (hit) p.onChangeLoadDirection(hit.v);
                 }}
               >
-                {DIRECTION_PRESETS.map((d) => (
+                {directionPresets.map((d) => (
                   <option key={d.key} value={d.key}>
                     {d.label}
                   </option>

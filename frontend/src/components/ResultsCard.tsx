@@ -98,6 +98,8 @@ export function ResultsCard({
             {result.yield_MPa.toFixed(0)} MPa yield ÷ {result.max_von_mises_MPa.toFixed(0)} MPa peak stress
             · your target {targetSafetyFactor}
           </div>
+          {/* For a backend result there is no hand calculation, so say here which solver made it. */}
+          {result.hand_check.length === 0 && <div className="verdict-sub">Solved with {result.method}</div>}
           {/* Above the top of the acceptable band the part is stronger than needed, which
               means extra mass. Say so instead of calling it a plain pass. */}
           {result.verdict === "pass" && result.safety_factor > SAFETY_BAND.max && (

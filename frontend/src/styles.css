@@ -377,7 +377,7 @@ textarea:focus-visible {
   align-items: center;
   gap: 6px 8px;
 }
-/* A small rounded label, like "AI estimate 97%" or "weighs 1865 N on Mars". */
+/* A small rounded label, like "Suggested (97% confidence)" or "weighs 1865 N on Mars". */
 .tag {
   font-size: 11.5px;
   color: var(--muted);
