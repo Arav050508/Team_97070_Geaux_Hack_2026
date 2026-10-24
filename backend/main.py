@@ -208,7 +208,7 @@ def interpret_with_gemini(body: dict, model: dict) -> dict:
         model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
         contents="Request: {}\nFaces: {}".format(body["prompt"], json.dumps(faces)),
         config=types.GenerateContentConfig(
-            system_instructions=SYSTEM_PROMPT,
+            system_instruction=SYSTEM_PROMPT,
             response_mime_type="application/json",
             response_schema=RESPONSE_SCHEMA,
             temperature=0
