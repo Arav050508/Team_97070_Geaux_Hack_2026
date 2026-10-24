@@ -51,6 +51,9 @@ export function PartPanel({ geometry, disabled, onThickness, onChangePart }: Pro
           value={draft}
           disabled={disabled}
           onChange={(e) => change(e.target.value)}
+          // When the user clicks away, put the real thickness back. Otherwise a box that was
+          // cleared or left on an out-of-range number would disagree with the part on screen.
+          onBlur={() => setDraft(String(geometry.thickness_mm))}
         />
         <span>mm</span>
       </label>

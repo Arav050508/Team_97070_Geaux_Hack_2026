@@ -70,7 +70,13 @@ The user picks a destination (Moon or Mars) and the app applies its conditions:
   place's gravity, so the same 500 kg rack loads the bracket about 2.3 times harder on Mars
   than on the Moon.
 - **Pressure.** The hatch sees cabin pressure minus the destination's outside pressure. Cabin
-  pressure has no default on purpose: enter a cited value for the habitat you are modeling.
+  pressure has no default on purpose. Three buttons fill in cited NASA values (`src/data/cabinAtmospheres.ts`):
+  an ISS-type cabin at 14.7 psia, a lunar habitat at 8.0 psia, and a Mars habitat at 7.6 psia. Or enter
+  your own cited number.
+- **What it means for the crew.** The results card restates the verdict in terms of the people
+  inside (`src/solver/consequence.ts`). For the hatch it compares the cabin pressure with the range
+  NASA gives for indefinite crew exposure (above 5.0 and up to 15.0 psia). These lines are fixed text
+  filled from the verdict and your inputs, not AI output.
 - Environment, pressure loads, and the pass target are attached by the frontend from that data and
   the user's inputs, never by the AI. The AI only picks surfaces and reads numbers the user wrote.
 - Temperature is displayed for context and not simulated.
@@ -79,8 +85,10 @@ The user picks a destination (Moon or Mars) and the app applies its conditions:
 
 - `src/data/materials.ts`: yield, modulus, Poisson's ratio, and density are typical handbook
   values entered from general knowledge. Check each against a datasheet and add the link here.
-- Cabin pressure: whatever value you use in the demo needs a source (for example, a published
-  figure for the habitat you name).
+- Cabin pressure presets are cited in `src/data/cabinAtmospheres.ts` (NASA-STD-3001 Technical
+  Brief OCHMO-TB-003 for 14.7 psia, and NASA/TP-2010-216134 for 8.0 and 7.6 psia). The 5.0 to 15.0
+  psia crew exposure range also comes from OCHMO-TB-003. Open both PDFs and confirm the numbers
+  before submitting. The example prompt's 101 kPa is the ISS-type value rounded.
 
 ## Where things live
 
@@ -91,10 +99,12 @@ The user picks a destination (Moon or Mars) and the app applies its conditions:
 | `src/data/parts.ts` | The two parts: fixed dimensions, thickness range, example prompts. |
 | `src/data/materials.ts` | Material properties (placeholders, see above). |
 | `src/data/environments.ts` | Sourced Moon and Mars conditions. |
+| `src/data/cabinAtmospheres.ts` | NASA cabin pressures (ISS, lunar and Mars habitats) and the crew exposure range. |
 | `src/parts/geometry.ts` | Builds the two parts in code, with stable face IDs. Always runs in the browser. |
 | `src/mocks/interpret.ts` | Fake AI: reads mass, force, and kPa from the prompt with regexes. |
 | `src/solver/analytic.ts` | The formulas. Pure functions. |
 | `src/solver/solve.ts` | Turns a spec into a result: validation, fields, hand calculation, verdict. |
+| `src/solver/consequence.ts` | Plain-language "what this means for the crew" lines for the results card. |
 | `src/solver/recommend.ts` | Reruns the solver across thicknesses and materials to find the lightest passing design. |
 | `src/components/` | Viewport, PartPanel, ConfirmationCard, EnvironmentPanel, ResultsCard, Thread. |
 | `src/App.tsx` | Stage state machine: empty, ready, interpreting, confirming, solving, results. |

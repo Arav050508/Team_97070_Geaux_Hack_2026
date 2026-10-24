@@ -8,6 +8,9 @@ interface Props {
   messages: ChatMessage[];
   /** The stage card (upload, confirmation, results) rendered at the end of the thread. */
   children?: ReactNode;
+  // Changes when a different card appears (App passes the stage name). The thread scrolls
+  // only when this or the message count changes, never when the card re-draws in place.
+  scrollKey: string;
   // True while the AI is working. Shows the typing dots and locks the input.
   busy: boolean;
   // False until a part is loaded, because there is nothing to describe before that.
@@ -18,16 +21,26 @@ interface Props {
   onSend: (text: string) => void;
 }
 
-export function Thread({ messages, children, busy, canSend, placeholder, example, onSend }: Props) {
+export function Thread({ messages, children, scrollKey, busy, canSend, placeholder, example, onSend }: Props) {
   // What the user has typed so far.
   const [draft, setDraft] = useState("");
   // An empty marker at the bottom of the list. Scrolling it into view scrolls to the end.
   const endRef = useRef<HTMLDivElement>(null);
+  // The box around the current card, so a new card can be scrolled to its top.
+  const cardRef = useRef<HTMLDivElement>(null);
 
-  // Keep the newest message or card in view.
+  // Keep the newest message or card in view. This runs when a message arrives or a different
+  // card appears. It must not depend on `children`: that is a new object on every redraw, and
+  // every hover over a row redraws the app, which used to yank the scroll position to the bottom
+  // while the user was reading a long card.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages.length, children]);
+    if (cardRef.current) {
+      // A card is showing. Line up its top edge so the user starts reading from the top.
+      cardRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [messages.length, scrollKey]);
 
   // Sends the draft, unless it is blank or the app is not ready for input.
   const submit = () => {
@@ -52,7 +65,8 @@ export function Thread({ messages, children, busy, canSend, placeholder, example
             <span /> <span /> <span />
           </div>
         )}
-        {children}
+        {/* Only add the wrapper when there is a card, so an empty box does not add a gap. */}
+        {children && <div ref={cardRef}>{children}</div>}
         <div ref={endRef} />
       </div>
 
@@ -61,7 +75,7 @@ export function Thread({ messages, children, busy, canSend, placeholder, example
             sample request. */}
         {canSend && !busy && draft === "" && (
           <button className="example" onClick={() => setDraft(example)}>
-            Try: “{example}”
+            Try: "{example}"
           </button>
         )}
         <div className="composer-row">

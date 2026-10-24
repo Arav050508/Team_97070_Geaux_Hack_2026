@@ -9,6 +9,7 @@
 // The "Confirm and check design" button stays disabled until the `problems` list below is
 // empty, so a bad setup can never reach the solver.
 
+import { CABIN_ATMOSPHERES, kPaToPsia, psiaToKPa } from "../data/cabinAtmospheres";
 import type { Environment } from "../data/environments";
 import { MATERIALS, getMaterial } from "../data/materials";
 import type { Clarification, GeometryPayload, ProposedSpec, Vec3 } from "../types";
@@ -211,8 +212,35 @@ export function ConfirmationCard(p: Props) {
             onChange={(e) => p.onCabinPressure(e.target.value)}
           />
           <span>kPa</span>
+          {/* Echo the same pressure in psia, the unit NASA publishes. */}
+          {cabin > 0 && <span className="tag">{kPaToPsia(cabin).toFixed(1)} psia</span>}
         </label>
-        <span className="tag">No default: use a cited value for your habitat</span>
+        {/* One button per cited NASA cabin pressure. Clicking fills the box above. */}
+        <div className="presets">
+          {CABIN_ATMOSPHERES.map((a) => (
+            <button
+              key={a.id}
+              className="chip"
+              title={`${a.psia} psia, ${a.o2Percent}% oxygen. ${a.source.label}`}
+              onClick={() => p.onCabinPressure(String(Number(psiaToKPa(a.psia).toFixed(2))))}
+            >
+              {a.name}: {a.psia.toFixed(1)} psia
+            </button>
+          ))}
+        </div>
+        <span className="fineprint">
+          No default. Pick a NASA value or enter your own cited number. Sources:{" "}
+          {/* Link each distinct source once, even if two presets share it. */}
+          {Array.from(new Map(CABIN_ATMOSPHERES.map((a) => [a.source.url, a.source])).values()).map((s, i) => (
+            <span key={s.url}>
+              {i > 0 && "; "}
+              <a href={s.url} target="_blank" rel="noreferrer">
+                {s.label}
+              </a>
+            </span>
+          ))}
+          .
+        </span>
         {p.pressureFaces.map((id) => (
           <div key={id} {...rowProps(id)}>
             <div className="row-main">

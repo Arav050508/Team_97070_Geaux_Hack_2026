@@ -27,6 +27,7 @@ import { Thread } from "./components/Thread";
 import { Viewport, type ArrowSpec, type FieldSpec } from "./components/Viewport";
 import { getEnvironment, type EnvId } from "./data/environments";
 import { PARTS, getPart } from "./data/parts";
+import { crewConsequence } from "./solver/consequence";
 import { recommend, type DesignOption, type Recommendation } from "./solver/recommend";
 import type {
   ChatMessage,
@@ -492,6 +493,17 @@ export default function App() {
         kind={resultKind}
         targetSafetyFactor={parseFloat(minSafetyFactor)}
         recommendation={recommendation}
+        consequence={
+          result.verdict && geometry
+            ? crewConsequence({
+                partId: geometry.part_id,
+                verdict: result.verdict,
+                cabinKPa: geometry.part_id === "hatch" ? parseFloat(cabinPressureKPa) : null,
+                outsidePa: env.external_pressure_Pa,
+                destinationName: env.name,
+              })
+            : []
+        }
         onKind={setResultKind}
         onApplyOption={(o) => void applyOption(o)}
         onEditSetup={() => setStage("confirming")}
@@ -542,6 +554,7 @@ export default function App() {
             placeholder={placeholder}
             example={example}
             onSend={send}
+            scrollKey={stage}
           >
             {card}
           </Thread>

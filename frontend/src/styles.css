@@ -354,6 +354,9 @@ textarea:focus-visible {
 /* One line in a group, such as a support or a pressurized face, with a Remove link on the right. */
 .row {
   display: flex;
+  /* Wrap so a long name, a number box, and a tag move to their own lines on a narrow panel
+     instead of being squeezed into a thin column. */
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -381,6 +384,8 @@ textarea:focus-visible {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 1px 8px;
+  /* Keep each tag on one line so it stays a small pill. */
+  white-space: nowrap;
 }
 /* A button that looks like a text link, such as "Remove" or "Change part". */
 .link {
@@ -893,4 +898,13 @@ select {
   font-size: 11px;
   color: var(--muted);
   white-space: nowrap;
+}
+
+/* ---------- cabin pressure presets ---------- */
+
+/* The row of NASA cabin pressure buttons under the cabin pressure box. */
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }

@@ -20,6 +20,8 @@ interface Props {
   targetSafetyFactor: number;
   // What the recommender found. null if it could not run.
   recommendation: Recommendation | null;
+  // Plain-language lines about what the verdict means for the crew (src/solver/consequence.ts).
+  consequence: string[];
   onKind: (k: ResultKind) => void;
   // The user clicked "Try ..." on one of the suggested designs.
   onApplyOption: (o: DesignOption) => void;
@@ -51,6 +53,7 @@ export function ResultsCard({
   kind,
   targetSafetyFactor,
   recommendation,
+  consequence,
   onKind,
   onApplyOption,
   onEditSetup,
@@ -91,6 +94,18 @@ export function ResultsCard({
             {result.yield_MPa.toFixed(0)} MPa yield ÷ {result.max_von_mises_MPa.toFixed(0)} MPa peak stress
             · your target {targetSafetyFactor}
           </div>
+        </div>
+      )}
+
+      {/* What the verdict means for the people inside. */}
+      {consequence.length > 0 && (
+        <div className="group">
+          <div className="group-title">What this means for the crew</div>
+          {consequence.map((line) => (
+            <p key={line} className="opt-line">
+              {line}
+            </p>
+          ))}
         </div>
       )}
 
