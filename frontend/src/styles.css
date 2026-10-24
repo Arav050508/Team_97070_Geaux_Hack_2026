@@ -127,19 +127,6 @@ textarea:focus-visible {
   font-size: 13px;
 }
 
-/* The small amber pill that says "Demo mode" (and "Browser demo solver" on results).
-   margin-left: auto pushes it to the right edge of the top bar. */
-.badge-mock {
-  margin-left: auto;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--load);
-  border: 1px solid #5a4010;
-  background: #2a1f0a;
-  border-radius: 999px;
-  padding: 2px 9px;
-}
 
 /* Two columns: a sidebar between 340px and 440px wide, and the 3D viewport taking the rest.
    min-height: 0 lets the columns scroll inside themselves instead of growing the page. */
@@ -293,10 +280,6 @@ textarea:focus-visible {
 .card-head h3 {
   margin: 0;
   font-size: 14px;
-}
-/* Inside a card header the badge should not be pushed to the far edge a second time. */
-.card-head .badge-mock {
-  margin-left: auto;
 }
 /* Small gray helper text, used for hints and fine print under controls. */
 .hint,
@@ -723,10 +706,9 @@ select {
   background: #a78bfa;
 }
 
-/* ---------- parts, verdict, hand calculation ---------- */
+/* ---------- part panel and verdict ---------- */
 
-/* The panel under the destination panel: part name, Change part link, and thickness input. */
-/* ---------- parts, verdict, hand calculation ---------- */
+/* The panel under the destination panel: part name and the Change part link. */
 
 .part-panel {
   border-bottom: 1px solid var(--line);
@@ -740,12 +722,6 @@ select {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-/* The two big part buttons shown before a part is chosen. */
-.part-choices {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 /* One part button: name on top, one-line description under it. */
 .part-choice {
@@ -814,94 +790,13 @@ select {
   color: var(--danger);
 }
 
-/* The collapsible "Show the hand calculation" box. */
-.handcalc {
-  margin: 10px 0;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 12px;
-  background: var(--panel);
-}
-/* The clickable title line. */
-.handcalc summary {
-  cursor: pointer;
-  font-size: 13px;
-}
-/* The numbered steps. A monospace font keeps the numbers readable. */
-.handcalc ol {
-  margin: 8px 0 4px;
-  padding-left: 18px;
-  font-size: 12px;
-  line-height: 1.55;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
-/* Space between steps. */
-.handcalc li {
-  margin-bottom: 4px;
-}
+/* ---------- crew consequence lines ---------- */
 
-/* ---------- design options (recommender) ---------- */
-
-/* One sentence of advice in the "Design options" group. */
+/* One sentence in the "What this means for the crew" group. */
 .opt-line {
   margin: 0;
   font-size: 13px;
   line-height: 1.45;
-}
-/* The bar chart of safety factor against thickness. */
-.sweep {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
-}
-/* The area the bars grow upward from. position: relative lets the target line sit inside it. */
-.sweep-bars {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 90px;
-  border-bottom: 1px solid var(--line);
-}
-/* One bar, one thickness. Its height is set inline by ResultsCard.tsx. */
-.sweep-bar {
-  flex: 1;
-  min-width: 2px;
-  border-radius: 2px 2px 0 0;
-  opacity: 0.85;
-}
-/* Bar colors match the verdict colors used elsewhere. */
-.sweep-pass {
-  background: var(--ok);
-}
-.sweep-marginal {
-  background: var(--load);
-}
-.sweep-fail {
-  background: var(--danger);
-}
-/* The bar for the thickness that is currently loaded gets a white outline. */
-.sweep-now {
-  outline: 2px solid var(--text);
-  outline-offset: 0;
-  opacity: 1;
-}
-/* A dashed line across the chart at the user's target safety factor. */
-.sweep-target {
-  position: absolute;
-  left: 0;
-  right: 0;
-  border-top: 1px dashed var(--muted);
-  pointer-events: none;
-}
-/* The row under the chart: thinnest thickness on the left, thickest on the right. */
-.sweep-axis {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--muted);
-  white-space: nowrap;
 }
 
 /* ---------- cabin pressure presets ---------- */
@@ -915,8 +810,8 @@ select {
 
 /* ---------- STEP import ---------- */
 
-/* The import choice is a <label> that wraps a hidden file input. It already looks like the
-   sample-part buttons (.part-choice). This adds a solid accent border so it reads as the main
+/* The import choice is a <label> that wraps a hidden file input. It shares the button look
+   of .part-choice. This adds a solid accent border so it reads as the main
    way to start. The background, border, and radius copy the default button look, since a
    label does not get them for free. */
 .import-choice {

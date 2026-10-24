@@ -12,11 +12,11 @@
 // A point or direction in 3D: [x, y, z]. Units are meters unless stated otherwise.
 export type Vec3 = [number, number, number];
 
-// ---------- Parts (built in code by src/parts/geometry.ts) ----------
+// ---------- Parts (read from a STEP file by the backend) ----------
 
-// The two parts the app can model. Adding a third part means adding a name here first.
-// "imported" is a STEP file the user uploaded. The other two are the built-in sample parts.
-export type PartId = "bracket" | "hatch" | "imported";
+// Every part is a STEP file the user imported. The id stays in the API so the backend can tell
+// what kind of part a request is about if more kinds are added later.
+export type PartId = "imported";
 
 // What kind of surface a face is. The viewer and the AI use this to tell holes (cylindrical)
 // from flat faces (planar).
@@ -53,11 +53,9 @@ export interface FaceMesh extends FaceMeta {
 /** Everything the viewer needs to draw one part. */
 export interface GeometryPayload {
   part_id: PartId;
-  // Imported files only: the id the backend gave the stored model. It is sent back with the
-  // solve request so the backend knows which file to analyze.
+  // The id the backend gave the stored model. It is sent back with the interpret and solve
+  // requests so the backend knows which file to use.
   model_id?: string;
-  // Built-in parts only. An imported file has no single adjustable thickness (0 here).
-  thickness_mm: number;
   // Display name shown in the corner of the 3D view.
   name: string;
   faces: FaceMesh[];
@@ -119,15 +117,10 @@ export interface SpecCriteria {
 }
 
 /**
- * The user's answers to the clarifying questions. Each answer switches which formula or
- * boundary case the solver uses.
+ * Extra solver options. There are none yet. The field stays in the spec so the contract with
+ * the backend does not change when one is added.
  */
-export interface SpecOptions {
-  // Bracket only: where the load acts along the bracket.
-  load_position?: "pad_center" | "free_end";
-  // Hatch only: how the rim is held. "clamped" cannot rotate, "simply_supported" can.
-  edge_condition?: "clamped" | "simply_supported";
-}
+export type SpecOptions = Record<string, never>;
 
 /**
  * The full request sent to the solver: everything it needs to produce an answer.
@@ -135,8 +128,8 @@ export interface SpecOptions {
  * adds the environment, criteria, and options before running.
  */
 export interface SimulationSpec {
-  // "analytic_screening" is the browser formulas. "fea" is the Ansys analysis on the backend.
-  analysis_type: "analytic_screening" | "fea";
+  // "fea" is the Ansys finite element analysis on the backend.
+  analysis_type: "fea";
   units: "SI"; // meters, newtons, pascals, kilograms
   // `name` is a material id from src/data/materials.ts, for example "aluminum_6061_t6".
   // `source` records who chose it, so the UI can warn when the AI guessed.
@@ -178,7 +171,7 @@ export interface ClarificationOption {
 
 /** A question the AI asks when the request could mean two different things. */
 export interface Clarification {
-  id: "load_position" | "support_model" | "edge_condition";
+  id: string;
   question: string;
   options: ClarificationOption[];
   // The `value` of the option that is selected at first.
@@ -194,8 +187,8 @@ export interface InterpretRequest {
   environment_id: string;
   // The destination values the app is using, so the backend does not need its own table.
   environment: { name: string; gravity_m_s2: number; external_pressure_Pa: number };
-  // Imported files only: which stored model this is, and the faces the AI can choose from
-  // (ids, labels, areas, positions, normals). Triangles are left out to keep the request small.
+  // Which stored model this is, and the faces the AI can choose from (ids, labels, areas,
+  // positions, normals). Triangles are left out to keep the request small.
   model_id?: string;
   faces?: FaceMeta[];
 }
@@ -226,7 +219,7 @@ export type Verdict = "pass" | "marginal" | "fail";
 export interface SolveResult {
   // "error" means the solver could not run. The `error` field then says why, in plain words.
   status: "ok" | "error";
-  // Notes that do not stop the result, such as "pressure was ignored for the bracket".
+  // Notes that do not stop the result, such as a peak stress that sits at a fixed support.
   warnings: string[];
   error?: string;
   // The highest von Mises stress anywhere on the part, in megapascals (MPa).
@@ -238,10 +231,8 @@ export interface SolveResult {
   safety_factor: number | null;
   yield_MPa: number | null;
   verdict: Verdict | null;
-  // One line naming the formula used, for example "Cantilever beam bending".
+  // One line naming the solver and the mesh, for example "Ansys MAPDL linear static, 16659 SOLID187 tetrahedra".
   method: string;
-  // The hand calculation, one line per step with the numbers filled in.
-  hand_check: string[];
   /**
    * The values painted onto the part. For each face id there is one number per corner,
    * in the same order as that face's `positions`. (3 floats in `positions` = 1 vertex,
@@ -263,7 +254,7 @@ export type Stage =
   | "ready" // part loaded, waiting for a request
   | "interpreting" // waiting for the AI
   | "confirming" // the AI's proposal is on screen for the user to review
-  | "solving" // the formulas are running
+  | "solving" // Ansys is running
   | "results"
   | "error";
 

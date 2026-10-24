@@ -239,13 +239,12 @@ export function Viewport(props: ViewportProps) {
       return;
     }
 
-    // CAD programs usually treat Z as up, while this viewer treats Y as up. Turn imported parts
-    // a quarter turn about X so the file's +Z points up on screen. This only changes the
-    // drawing: the face positions, force directions, and results all stay in the file's own
-    // coordinates. The arrows group turns the same way so arrows stay attached to their faces.
-    const zUp = props.geometry.part_id === "imported";
-    ctx.faces.rotation.x = zUp ? -Math.PI / 2 : 0;
-    ctx.arrows.rotation.x = zUp ? -Math.PI / 2 : 0;
+    // CAD programs usually treat Z as up, while this viewer treats Y as up. Turn the part a
+    // quarter turn about X so the file's +Z points up on screen. This only changes the drawing:
+    // the face positions, force directions, and results all stay in the file's own coordinates.
+    // The arrows group turns the same way so arrows stay attached to their faces.
+    ctx.faces.rotation.x = -Math.PI / 2;
+    ctx.arrows.rotation.x = -Math.PI / 2;
 
     for (const face of props.geometry.faces) {
       const geo = new THREE.BufferGeometry();
@@ -278,9 +277,8 @@ export function Viewport(props: ViewportProps) {
     ctx.faces.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(ctx.faces);
 
-    // Move the camera only when the user switches to a different part. If it moved every
-    // time the thickness changed, the view would jump while they type.
-    // An imported file is identified by its model id, because every import has the same part_id.
+    // Move the camera only when the user switches to a different part, so the view does not
+    // jump when the same part is redrawn. Each import has its own model id.
     const partKey = props.geometry.model_id ?? props.geometry.part_id;
     const samePart = framedPart.current === partKey;
     framedPart.current = partKey;
@@ -336,7 +334,7 @@ export function Viewport(props: ViewportProps) {
     if (!ctx) return;
     disposeGroup(ctx.arrows);
     // Size the arrows to the part: a quarter of the part's overall size. A fixed size looked
-    // tiny on a big part and swallowed a small one (the 100 mm sample beam).
+    // tiny on a big part and swallowed a small one (a 100 mm beam).
     const box = new THREE.Box3();
     for (const f of props.geometry?.faces ?? []) {
       for (let i = 0; i < f.positions.length; i += 3) {

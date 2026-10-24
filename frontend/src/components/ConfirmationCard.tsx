@@ -59,28 +59,19 @@ interface Props {
 }
 
 /**
- * Turns a direction vector into words, for example [0, -1, 0] into "down (-Y)". Uses the same
- * labels as the direction menu, so `zUp` is true for imported parts.
+ * Turns a direction vector into words, for example [0, 0, -1] into "down (-z)". Uses the same
+ * labels as the direction menu.
  */
-function describeDirection(d: Vec3, zUp: boolean): string {
-  const hit = (zUp ? Z_UP_PRESETS : Y_UP_PRESETS).find(
+function describeDirection(d: Vec3): string {
+  const hit = Z_UP_PRESETS.find(
     ({ v }) => v[0] === d[0] && v[1] === d[1] && v[2] === d[2],
   );
   // For any direction not in the list, show the raw numbers.
   return hit ? hit.label.toLowerCase() : `[${d.join(", ")}]`;
 }
 
-// The six axis directions offered in the direction menu. The sample parts use Y as up. An
-// imported CAD file usually uses Z as up (the viewer turns it so Z points up on screen), so for
-// those the words "Down" and "Up" go with -Z and +Z instead.
-const Y_UP_PRESETS: Array<{ key: string; label: string; v: Vec3 }> = [
-  { key: "-y", label: "Down (-Y)", v: [0, -1, 0] },
-  { key: "+y", label: "Up (+Y)", v: [0, 1, 0] },
-  { key: "+x", label: "Along +X", v: [1, 0, 0] },
-  { key: "-x", label: "Along -X", v: [-1, 0, 0] },
-  { key: "+z", label: "Along +Z", v: [0, 0, 1] },
-  { key: "-z", label: "Along -Z", v: [0, 0, -1] },
-];
+// The six axis directions offered in the direction menu. CAD files usually use Z as up (the
+// viewer turns the part so Z points up on screen), so "Down" and "Up" go with -Z and +Z.
 const Z_UP_PRESETS: Array<{ key: string; label: string; v: Vec3 }> = [
   { key: "-z", label: "Down (-Z)", v: [0, 0, -1] },
   { key: "+z", label: "Up (+Z)", v: [0, 0, 1] },
@@ -92,7 +83,7 @@ const Z_UP_PRESETS: Array<{ key: string; label: string; v: Vec3 }> = [
 
 /** The menu key for a direction: a preset key, or "custom" for anything else. */
 function directionKey(d: Vec3): string {
-  const hit = Y_UP_PRESETS.find(({ v }) => v[0] === d[0] && v[1] === d[1] && v[2] === d[2]);
+  const hit = Z_UP_PRESETS.find(({ v }) => v[0] === d[0] && v[1] === d[1] && v[2] === d[2]);
   return hit ? hit.key : "custom";
 }
 
@@ -103,13 +94,8 @@ export function ConfirmationCard(p: Props) {
   // The readable name for a face id, such as "Mounting hole A". Falls back to the id.
   const label = (id: string) => p.geometry.faces.find((f) => f.id === id)?.label ?? id;
   const load = p.spec.loads[0];
-  const isHatch = p.geometry.part_id === "hatch";
-  // An imported STEP file can have a force, a pressure, or both. The built-in bracket has a
-  // force only, and the built-in hatch has a pressure only.
-  const isImported = p.geometry.part_id === "imported";
-  const showLoad = !isHatch;
-  const showPressure = isHatch || isImported;
-  const directionPresets = isImported ? Z_UP_PRESETS : Y_UP_PRESETS;
+  // A part can have a force, a pressure, or both.
+  const directionPresets = Z_UP_PRESETS;
   const material = getMaterial(p.spec.material.name);
   // The user can enter the load as a mass (kg) or as a force (N). A load that carries a
   // mass_kg value is shown in kg.
@@ -121,29 +107,20 @@ export function ConfirmationCard(p: Props) {
   // Build the list of things still wrong with the setup. While it has anything in it, the
   // run button is disabled and the messages are shown under the form.
   const problems: string[] = [];
-  if (p.spec.constraints.length === 0) {
-    problems.push(isHatch ? "Choose the rim as the fixed support." : "Add at least one fixed support.");
-  }
+  if (p.spec.constraints.length === 0) problems.push("Add at least one fixed support.");
   const cabin = parseFloat(p.cabinPressureKPa);
-  if (isHatch) {
-    if (p.pressureFaces.length === 0) problems.push("Choose the face the cabin pressure acts on.");
-    // `!(cabin > 0)` is also true when cabin is NaN (an empty box), which `cabin <= 0` is not.
-    if (!(cabin > 0)) problems.push("Enter the cabin pressure in kPa.");
-  } else if (load && loadUnit === "kg" && p.env.gravity_m_s2 === 0) {
+  if (load && loadUnit === "kg" && p.env.gravity_m_s2 === 0) {
     // In free space nothing weighs anything, so a mass cannot give a force.
     problems.push("A mass has no weight in free space. Switch the load to N and enter the force, for example from thrust or docking.");
-  } else if (isImported) {
-    // An imported part needs at least one load: a force, a pressure, or both.
+  } else {
+    // The part needs at least one load: a force, a pressure, or both.
     if (!load && p.pressureFaces.length === 0) problems.push("Add a force on a face, a pressure on a face, or both.");
+    // `!(x > 0)` is also true when x is NaN (an empty box), which `x <= 0` is not.
     if (load && !(loadN > 0)) problems.push("Enter a force or mass greater than zero.");
     if (p.pressureFaces.length > 0 && !(cabin > 0)) problems.push("Enter the pressure in kPa.");
-  } else if (!load) {
-    problems.push("Choose a face to load.");
-  } else if (!(loadN > 0)) {
-    problems.push(`Enter a ${loadUnit === "kg" ? "mass" : "force"} greater than zero.`);
   }
   // A force needs a direction. The all-zero vector points nowhere.
-  if (load && showLoad && load.direction.every((c) => c === 0)) problems.push("The force direction cannot be all zeros.");
+  if (load && load.direction.every((c) => c === 0)) problems.push("The force direction cannot be all zeros.");
   if (p.envProblem) problems.push(p.envProblem);
   if (!(parseFloat(p.minSafetyFactor) >= 1)) problems.push("Enter a target safety factor of 1 or more.");
 
@@ -217,14 +194,13 @@ export function ConfirmationCard(p: Props) {
           onClick={() => p.onSetPickMode(p.pickMode === "support" ? null : "support")}
         >
           {p.pickMode === "support"
-            ? `Click ${isHatch ? "the rim" : "holes"} on the model… (done)`
+            ? "Click a face on the model… (done)"
             : "+ Pick support on model"}
         </button>
         {faceList("support", "Or choose a support from a list")}
       </div>
 
-      {/* Applied load: the bracket and imported parts. The built-in hatch is loaded by pressure. */}
-      {showLoad && (
+      {/* Applied load. */}
       <div className="group">
         <div className="group-title">
           <span className="swatch swatch-load" /> Applied load
@@ -233,7 +209,7 @@ export function ConfirmationCard(p: Props) {
           <div {...rowProps(load.geometry_id)}>
             <div className="row-main">
               <strong>{label(load.geometry_id)}</strong>
-              <span className="tag">{describeDirection(load.direction, isImported)}</span>
+              <span className="tag">{describeDirection(load.direction)}</span>
               {p.userPicked.has(load.geometry_id) && <span className="tag">Picked by you</span>}
             </div>
             <label className="inline">
@@ -313,20 +289,18 @@ export function ConfirmationCard(p: Props) {
         </button>
         {faceList("load", "Or choose the loaded face from a list")}
       </div>
-      )}
 
-      {/* Pressure: the built-in hatch (required) and imported parts (optional). */}
-      {showPressure && (
+      {/* Pressure (optional). */}
       <div className="group">
         <div className="group-title">
-          <span className="swatch swatch-pressure" /> {isImported ? "Pressure (optional)" : "Cabin pressure"}
+          <span className="swatch swatch-pressure" /> Pressure (optional)
         </div>
         <p className="hint">
           Cabin pressure pushes outward on the faces you pick, against the {p.env.name} outside
           pressure ({p.env.pressure_label}).
         </p>
         <label className="inline">
-          <span>{isImported ? "Pressure" : "Cabin pressure"}</span>
+          <span>Pressure</span>
           <input
             type="number"
             min={0}
@@ -384,7 +358,6 @@ export function ConfirmationCard(p: Props) {
         </button>
         {faceList("pressure", "Or choose a pressurized face from a list")}
       </div>
-      )}
 
       {/* Material: a dropdown filled from the list in data/materials.ts. */}
       <div className="group">

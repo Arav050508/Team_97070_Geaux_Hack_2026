@@ -4,14 +4,14 @@
 //   Thread                        the chat column (which also shows the current step's card)
 //   ConfirmationCard, ResultsCard the two big cards
 //   Viewport                      the 3D view
-//   api.ts                        the three calls: build the part, ask the AI, run the check
+//   api.ts                        the three backend calls: import a file, ask the AI, run the check
 //
 // The app moves through "stages" (the Stage type in types.ts):
-//   empty        no part chosen yet
+//   empty        no part imported yet
 //   ready        a part is loaded, waiting for the user to describe a test
 //   interpreting the AI is reading the request
 //   confirming   the AI's proposed setup is shown for the user to check and fix
-//   solving      the formulas are running
+//   solving      Ansys is running
 //   results      the verdict and colored model are shown
 //
 // React note: useState gives a value plus a function to change it. Calling that function
@@ -19,7 +19,7 @@
 
 import { SAFETY_BAND } from "./data/safetyBand";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { USE_MOCK, importStep, interpret, loadPart, solve } from "./api";
+import { importStep, interpret, solve } from "./api";
 import { ConfirmationCard, type PickMode } from "./components/ConfirmationCard";
 import { EnvironmentPanel } from "./components/EnvironmentPanel";
 import { PartPanel } from "./components/PartPanel";
@@ -27,21 +27,17 @@ import { ResultsCard, type ResultKind } from "./components/ResultsCard";
 import { Thread } from "./components/Thread";
 import { Viewport, type ArrowSpec, type FieldSpec } from "./components/Viewport";
 import { customEnvironment, findEnvironment } from "./data/environments";
-import { PARTS, getPart } from "./data/parts";
 import { unitVector } from "./solver/vector";
 import { crewConsequence } from "./solver/consequence";
-import { recommend, type DesignOption, type Recommendation } from "./solver/recommend";
 import type {
   ChatMessage,
   Clarification,
   FaceRole,
   GeometryPayload,
-  PartId,
   PressureLoad,
   ProposedSpec,
   SimulationSpec,
   SolveResult,
-  SpecOptions,
   Stage,
   Vec3,
 } from "./types";
@@ -53,7 +49,7 @@ const newId = () => Math.random().toString(36).slice(2);
 const WELCOME: ChatMessage = {
   id: "welcome",
   role: "assistant",
-  text: "Import a STEP file (or try a sample part), type where it will be used (Mars, the Moon, or any other place), then describe the test in plain English. I will propose the supports, load, and direction, and show you the surfaces I picked before anything runs.",
+  text: "Import a STEP file, type where it will be used (Mars, the Moon, or any other place), then describe the test in plain English. I will propose the supports, load, and direction, and show you the surfaces I picked before anything runs.",
 };
 
 /** Gets a readable message out of whatever was thrown. */
@@ -75,7 +71,7 @@ export default function App() {
   const [destination, setDestination] = useState("Mars");
   const [customGravity, setCustomGravity] = useState("");
   const [customPressureKPa, setCustomPressureKPa] = useState("");
-  // Ids of the faces the cabin pressure pushes on (hatch only).
+  // Ids of the faces the cabin pressure pushes on (optional).
   const [pressureFaces, setPressureFaces] = useState<string[]>([]);
   // Typed text, so the field can be empty or half-typed.
   const [cabinPressureKPa, setCabinPressureKPa] = useState("");
@@ -90,8 +86,6 @@ export default function App() {
   // The face under the mouse, from either the 3D view or a row in the card.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [result, setResult] = useState<SolveResult | null>(null);
-  // The recommender's answer for the latest result: lighter or passing alternatives.
-  const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   // Which result is painted on the model: stress or displacement.
   const [resultKind, setResultKind] = useState<ResultKind>("von_mises");
 
@@ -121,13 +115,12 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [envKey]);
 
-  // ---------- choosing and adjusting the part ----------
+  // ---------- importing the part ----------
 
   // Forgets the current setup and results, but keeps the part and the chat history.
   const clearSetup = () => {
     setSpec(null);
     setResult(null);
-    setRecommendation(null);
     setClarifications([]);
     setAnswers({});
     setUserPicked(new Set());
@@ -158,37 +151,10 @@ export default function App() {
     }
   };
 
-  const choosePart = async (id: PartId) => {
-    try {
-      const geo = await loadPart(id, getPart(id).thickness.default);
-      clearSetup();
-      setGeometry(geo);
-      setStage("ready");
-      say("system", `Loaded the ${getPart(id).name.toLowerCase()}, ${geo.thickness_mm} mm thick.`);
-    } catch (e) {
-      say("system", `Could not load the part: ${errMsg(e)}`);
-    }
-  };
-
   const changePart = () => {
     setGeometry(null);
     clearSetup();
     setStage("empty");
-  };
-
-  const changeThickness = async (mm: number) => {
-    if (!geometry) return;
-    try {
-      setGeometry(await loadPart(geometry.part_id, mm));
-      // Old results no longer match the new thickness, so drop them and go back a step.
-      if (stage === "results") {
-        setResult(null);
-        setStage("confirming");
-        say("system", `Thickness set to ${mm} mm. The old results were cleared. Run again to update.`);
-      }
-    } catch (e) {
-      say("system", `Could not rebuild the part: ${errMsg(e)}`);
-    }
   };
 
   // ---------- conversation ----------
@@ -205,27 +171,20 @@ export default function App() {
     setResult(null);
     setStage("interpreting");
     try {
-      const res = await interpret(
-        {
-          prompt: text,
-          part_id: geometry.part_id,
-          environment_id: env.id,
-          environment: {
-            name: env.name,
-            gravity_m_s2: env.gravity_m_s2,
-            external_pressure_Pa: env.external_pressure_Pa,
-          },
-          // An imported file is only known to the backend by its id, so also send the face
-          // list (without triangles) that the AI chooses from.
-          ...(geometry.part_id === "imported"
-            ? {
-                model_id: geometry.model_id,
-                faces: geometry.faces.map(({ positions: _positions, ...meta }) => meta),
-              }
-            : {}),
+      const res = await interpret({
+        prompt: text,
+        part_id: geometry.part_id,
+        environment_id: env.id,
+        environment: {
+          name: env.name,
+          gravity_m_s2: env.gravity_m_s2,
+          external_pressure_Pa: env.external_pressure_Pa,
         },
-        geometry,
-      );
+        // The backend knows the file by its id. Also send the face list (without triangles)
+        // that the AI chooses from.
+        model_id: geometry.model_id,
+        faces: geometry.faces.map(({ positions: _positions, ...meta }) => meta),
+      });
       setSpec(res.spec);
       setClarifications(res.clarifications);
       // Start each question on its default answer. Object.fromEntries turns a list of
@@ -250,9 +209,9 @@ export default function App() {
     // Cabin pressure is typed in kPa, but the solver wants pascals (1 kPa = 1000 Pa).
     const cabinPa = parseFloat(cabinPressureKPa) * 1000;
     const cabinOk = cabinPa > 0;
-    // Only the hatch has a pressure load. One entry per pressurized face.
+    // A pressure load is optional. One entry per pressurized face.
     const pressureLoads: PressureLoad[] =
-      (geometry.part_id === "hatch" || geometry.part_id === "imported") && cabinOk
+      cabinOk
         ? pressureFaces.map((id) => ({
             type: "pressure_differential",
             geometry_id: id,
@@ -260,15 +219,9 @@ export default function App() {
             external_pressure_Pa: env.external_pressure_Pa,
           }))
         : [];
-    // Turn the user's multiple-choice answers into the solver's option fields.
-    const options: SpecOptions = {};
-    if (answers.load_position) options.load_position = answers.load_position as SpecOptions["load_position"];
-    if (answers.edge_condition) options.edge_condition = answers.edge_condition as SpecOptions["edge_condition"];
-
     const finalSpec: SimulationSpec = {
       ...spec,
-      // An imported part is analyzed by the Ansys backend. The built-in parts use the formulas.
-      analysis_type: geometry.part_id === "imported" ? "fea" : spec.analysis_type,
+      analysis_type: "fea",
       loads: [
         // If a load was entered as a mass, recompute its force with this destination's
         // gravity. That way switching from Mars to Moon changes the weight correctly.
@@ -287,7 +240,7 @@ export default function App() {
         sources: env.sources.map((s) => s.label),
       },
       criteria: { min_safety_factor: parseFloat(minSafetyFactor) },
-      options,
+      options: {},
     };
     setPickMode(null);
     setStage("solving");
@@ -301,10 +254,6 @@ export default function App() {
         return;
       }
       setResult(res);
-      // Try the other thicknesses and materials with the same setup, to suggest a better design.
-      // Only the built-in parts: the sweep reruns the browser formulas, which do not apply to an
-      // imported part analyzed in Ansys.
-      setRecommendation(geometry.part_id === "imported" ? null : recommend(finalSpec, geometry));
       setResultKind("von_mises");
       setStage("results");
       const verdict =
@@ -315,27 +264,11 @@ export default function App() {
             : "That fails: the stress is above the material's yield strength.";
       say(
         "assistant",
-        `Safety factor ${res.safety_factor?.toFixed(2)} (peak stress ${res.max_von_mises_MPa.toFixed(0)} MPa against ${res.yield_MPa?.toFixed(0)} MPa yield). ${verdict} ${geometry.part_id === "imported" ? "The details and assumptions are below." : "The hand calculation and assumptions are below."}`,
+        `Safety factor ${res.safety_factor?.toFixed(2)} (peak stress ${res.max_von_mises_MPa.toFixed(0)} MPa against ${res.yield_MPa?.toFixed(0)} MPa yield). ${verdict} The details and assumptions are below.`,
       );
     } catch (e) {
       say("assistant", `The check failed: ${errMsg(e)}`);
       setStage("confirming");
-    }
-  };
-
-  // The user clicked "Try ..." on a suggested design. Rebuild the part at that thickness,
-  // switch the material if needed, and go back to the confirmation card so they can run it.
-  const applyOption = async (o: DesignOption) => {
-    if (!geometry) return;
-    try {
-      setGeometry(await loadPart(geometry.part_id, o.thicknessMm));
-      if (spec && o.materialId !== spec.material.name) changeMaterial(o.materialId);
-      setResult(null);
-      setRecommendation(null);
-      setStage("confirming");
-      say("system", `Set to ${o.thicknessMm} mm ${o.materialName}. Press "Confirm and check design" to run it.`);
-    } catch (e) {
-      say("system", `Could not rebuild the part: ${errMsg(e)}`);
     }
   };
 
@@ -491,14 +424,10 @@ export default function App() {
   // True while waiting on the AI or the solver.
   const busy = stage === "interpreting" || stage === "solving";
   const canSend = !!geometry;
-  const example = !geometry
-    ? ""
-    : geometry.part_id === "imported"
-      ? "Fix the bottom face and push down on the top face with 2000 N"
-      : getPart(geometry.part_id).example;
+  const example = geometry ? "Fix the bottom face and push down on the top face with 2000 N" : "";
 
   const placeholder = !geometry
-    ? "Import a STEP file or pick a sample part first"
+    ? "Import a STEP file first"
     : stage === "confirming"
       ? "Change the request, e.g. make it 800 kg"
       : "Describe the supports and load in plain English";
@@ -514,7 +443,6 @@ export default function App() {
           <h3>Start with a part</h3>
         </header>
         <div className="group">
-          <div className="group-title">Import your own part</div>
           {/* The file input is hidden. The label is styled as a button and opens it. */}
           <label className="part-choice import-choice">
             <strong>Import a STEP file</strong>
@@ -535,23 +463,7 @@ export default function App() {
               }}
             />
           </label>
-          {USE_MOCK && (
-            <p className="fineprint">
-              Demo mode cannot read STEP files. Run the backend with VITE_USE_MOCK=false to use import.
-            </p>
-          )}
         </div>
-        <div className="group-title">Or try a sample part (browser fallback demo)</div>
-        <div className="part-choices">
-          {PARTS.map((p) => (
-            // `void` tells TypeScript we are deliberately not waiting for the async call.
-            <button key={p.id} className="part-choice" onClick={() => void choosePart(p.id)}>
-              <strong>{p.name}</strong>
-              <span>{p.blurb}</span>
-            </button>
-          ))}
-        </div>
-        <p className="fineprint">The sample parts are built in code and checked with textbook formulas in your browser. No upload, no backend.</p>
       </section>
     );
   } else if (stage === "confirming" && spec && geometry) {
@@ -595,9 +507,8 @@ export default function App() {
           <div />
         </div>
         <p className="fineprint">
-          {geometry?.part_id === "imported"
-            ? "Meshing the part and running the analysis in Ansys. The first run also starts Ansys, so it can take a minute."
-            : "Applying conditions and working through the formulas."}
+          Meshing the part and running the analysis in Ansys. The first run also starts Ansys, so it can
+          take a minute.
         </p>
       </section>
     );
@@ -607,21 +518,18 @@ export default function App() {
         result={result}
         kind={resultKind}
         targetSafetyFactor={parseFloat(minSafetyFactor)}
-        browserSolver={geometry?.part_id !== "imported"}
-        recommendation={recommendation}
         consequence={
           result.verdict && geometry
             ? crewConsequence({
-                partId: geometry.part_id,
                 verdict: result.verdict,
-                cabinKPa: geometry.part_id === "hatch" ? parseFloat(cabinPressureKPa) : null,
+                // Only a part with a pressure load has a cabin pressure to compare with NASA's range.
+                cabinKPa: pressureFaces.length > 0 && parseFloat(cabinPressureKPa) > 0 ? parseFloat(cabinPressureKPa) : null,
                 outsidePa: env.external_pressure_Pa,
                 destinationName: env.name,
               })
             : []
         }
         onKind={setResultKind}
-        onApplyOption={(o) => void applyOption(o)}
         onEditSetup={() => setStage("confirming")}
         onNewRequest={() => {
           setStage("ready");
@@ -640,7 +548,6 @@ export default function App() {
       <header className="topbar">
         <h1>SimForge</h1>
         <span className="topbar-sub">Import it. Describe it. Confirm it. Check it on any world.</span>
-        {USE_MOCK && <span className="badge-mock">Demo mode</span>}
       </header>
 
       <main className="layout">
@@ -665,7 +572,6 @@ export default function App() {
             <PartPanel
               geometry={geometry}
               disabled={busy}
-              onThickness={(mm) => void changeThickness(mm)}
               onChangePart={changePart}
             />
           )}

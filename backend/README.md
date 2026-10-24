@@ -1,7 +1,7 @@
 # SimForge: backend
 
-A small FastAPI server for the frontend's imported STEP parts. The two sample parts (bracket and
-hatch) never come here: the frontend checks them in the browser.
+A small FastAPI server for the frontend. It imports STEP files, proposes the test setup, and
+solves it in Ansys.
 
 ## Run
 
@@ -17,7 +17,7 @@ cd backend
 uvicorn main:app --port 8000
 ```
 
-Then start the frontend in real mode from `frontend/`: `$env:VITE_USE_MOCK="false"; npm run dev`.
+Then start the frontend from `frontend/` with `npm run dev`.
 Check the server with http://localhost:8000/api/health.
 
 ## Status
@@ -50,15 +50,13 @@ from beam theory. Pressure has not been run in Ansys itself yet.
 
 To test the result screens without Ansys, start the server with `$env:FAKE_SOLVE="1"`. The
 result is made up, and the app labels it PLACEHOLDER in the warnings, the method, and the
-assumptions. Do not use it in the demo.
+assumptions. Do not use it for real results.
 
 ## Things to know
 
 - Units: STEP files are read in millimeters and sent to the frontend in meters. Results go back
   in MPa and mm.
-- Axes: the analysis uses the CAD file's own axes. Most CAD programs use Z as up, so the viewer
-  turns imported parts to show +Z up, and the direction menu calls -Z "Down" for them. The sample
-  parts use Y as up.
+- Axes: the analysis uses the CAD file's own axes. Most CAD programs use Z as up, so the viewer turns imported parts to show +Z up, and the direction menu calls -Z "Down".
 - Face ids (`face_001`, ...) follow the order Open CASCADE walks the faces. The solver matches
   each one to its gmsh surface by center and area, not by order.
 - If a solve hangs at "starting Ansys MAPDL", an old Ansys process is probably still holding the

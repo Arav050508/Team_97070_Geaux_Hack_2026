@@ -12,7 +12,7 @@ export default defineConfig({
     // Any request the browser makes to a path starting with /api is forwarded to the
     // Python backend on port 8000. That way the frontend code never contains the backend's
     // address, and the browser sees one origin, which avoids cross-origin (CORS) errors.
-    // This only matters when VITE_USE_MOCK=false, because demo mode makes no network calls.
+    // The backend has to be running on port 8000 for import, interpret, and solve to work.
     proxy: {
       "/api": "http://localhost:8000",
     },
