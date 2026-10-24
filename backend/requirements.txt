@@ -11,3 +11,7 @@ cadquery-ocp
 gmsh
 # Talks to Ansys Mechanical APDL from Python. Ansys itself is installed separately.
 ansys-mapdl-core
+# Connects to the Google Gemini API
+google-genai
+# Loads .env
+python-dotenv
