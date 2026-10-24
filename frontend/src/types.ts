@@ -103,7 +103,7 @@ export interface PressureLoad {
  * (src/data/environments.ts), never from the AI, so every value has a source.
  */
 export interface SpecEnvironment {
-  name: string; // "moon" or "mars"
+  name: string; // the destination, for example "mars" or the name the user typed
   gravity_m_s2: number;
   external_pressure_Pa: number;
   // null until the user types a cabin pressure. There is deliberately no default.
@@ -190,7 +190,10 @@ export interface InterpretRequest {
   // The plain-English request the user typed.
   prompt: string;
   part_id: PartId;
-  environment_id: "moon" | "mars";
+  // A short id such as "mars", or "custom" for a place the user described with their own numbers.
+  environment_id: string;
+  // The destination values the app is using, so the backend does not need its own table.
+  environment: { name: string; gravity_m_s2: number; external_pressure_Pa: number };
   // Imported files only: which stored model this is, and the faces the AI can choose from
   // (ids, labels, areas, positions, normals). Triangles are left out to keep the request small.
   model_id?: string;

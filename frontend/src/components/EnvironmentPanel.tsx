@@ -1,73 +1,89 @@
-// The collapsible "Destination" panel at the top of the sidebar. The user picks Moon or
-// Mars here, and the panel shows the conditions that will be used (gravity, outside
-// pressure, temperature) with links to where the numbers came from.
+// The destination box at the top of the sidebar. The user types a place name. Names the app
+// knows (see data/environments.ts) use NASA values quietly. Any other name shows two boxes
+// for the gravity and the outside pressure, so any world can be tested.
 
-import { ENVIRONMENTS, type EnvId, type Environment } from "../data/environments";
+import { DESTINATION_NAMES, type Environment } from "../data/environments";
 
 interface Props {
+  // What the user has typed in the destination box.
+  destination: string;
+  onDestination: (text: string) => void;
+  // True when the typed name matched a bundled destination.
+  known: boolean;
+  // The two boxes for places the app does not know. Text, so they can be empty or half typed.
+  gravityText: string;
+  onGravity: (text: string) => void;
+  pressureText: string;
+  onPressure: (text: string) => void;
+  // What is wrong with the custom values, or null. Shown under the boxes.
+  problem: string | null;
+  // The destination in use. Only the name is shown here.
   env: Environment;
   disabled: boolean;
   /** Initial open state. Change the component's `key` to reset it. */
   defaultOpen: boolean;
-  onChange: (id: EnvId) => void;
 }
 
-/** Destination selector plus the sourced conditions that will be applied to the simulation. */
-export function EnvironmentPanel({ env, disabled, defaultOpen, onChange }: Props) {
+export function EnvironmentPanel(p: Props) {
   return (
-    // <details> opens and closes on click. `open` only sets its starting state. App.tsx
-    // changes this component's `key` when the stage changes, which makes React build a fresh
-    // copy and so re-applies defaultOpen.
-    <details className="env" open={defaultOpen}>
+    <details className="env" open={p.defaultOpen}>
       <summary>
         <span className="env-title">Destination</span>
-        <span className="env-current">{env.name}</span>
+        <span className="env-current">{p.env.name}</span>
       </summary>
 
-      {/* One button per destination, built from the list in data/environments.ts. The
-          role and aria-checked attributes tell screen readers this is a radio group. */}
-      <div className="seg" role="radiogroup" aria-label="Destination">
-        {ENVIRONMENTS.map((e) => (
-          <button
-            key={e.id}
-            role="radio"
-            aria-checked={e.id === env.id}
-            className={e.id === env.id ? "seg-on" : ""}
-            disabled={disabled}
-            onClick={() => onChange(e.id)}
-          >
-            {e.name}
-          </button>
+      {/* A text box with a list of suggestions (<datalist>). The user can pick one or type
+          any name. */}
+      <label className="inline dest">
+        <span>Planet or moon</span>
+        <input
+          type="text"
+          list="destination-names"
+          value={p.destination}
+          disabled={p.disabled}
+          placeholder="Mars, Moon, Venus, or any other place"
+          onChange={(e) => p.onDestination(e.target.value)}
+        />
+      </label>
+      <datalist id="destination-names">
+        {DESTINATION_NAMES.map((n) => (
+          <option key={n} value={n} />
         ))}
-      </div>
+      </datalist>
 
-      {/* A <dl> is a list of labels (dt) and values (dd). */}
-      <dl className="env-grid">
-        <dt>Surface gravity</dt>
-        <dd>{env.gravity_m_s2} m/s²</dd>
-        <dt>Outside pressure</dt>
-        <dd>{env.pressure_label}</dd>
-        <dt>Temperature</dt>
-        <dd>
-          {env.temperature_label}
-          <span className="fineprint"> (shown for context; not simulated)</span>
-        </dd>
-      </dl>
-
-      <p className="fineprint">
-        Sources:{" "}
-        {env.sources.map((s, i) => (
-          <span key={s.url}>
-            {/* Put a comma before every source except the first. */}
-            {i > 0 && ", "}
-            {/* rel="noreferrer" is the usual safety setting for links that open a new tab. */}
-            <a href={s.url} target="_blank" rel="noreferrer">
-              {s.label}
-            </a>
-          </span>
-        ))}
-        . Planetary reference data.
-      </p>
+      {/* Only for a name the app does not know: the user supplies the two numbers. */}
+      {!p.known && p.destination.trim() !== "" && (
+        <div className="group">
+          <p className="hint">
+            The app has no data for {p.destination.trim()}. Enter its values from a source you trust.
+          </p>
+          <label className="inline">
+            <span>Surface gravity</span>
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              value={p.gravityText}
+              disabled={p.disabled}
+              onChange={(e) => p.onGravity(e.target.value)}
+            />
+            <span>m/s²</span>
+          </label>
+          <label className="inline">
+            <span>Outside pressure</span>
+            <input
+              type="number"
+              min={0}
+              step={0.1}
+              value={p.pressureText}
+              disabled={p.disabled}
+              onChange={(e) => p.onPressure(e.target.value)}
+            />
+            <span>kPa</span>
+          </label>
+          {p.problem && <span className="fineprint">{p.problem}</span>}
+        </div>
+      )}
     </details>
   );
 }

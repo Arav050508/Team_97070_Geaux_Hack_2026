@@ -9,7 +9,6 @@
 // The shape of the answer (InterpretResponse in src/types.ts) is the same one the real
 // backend will return, so the rest of the app does not need to change later.
 
-import { getEnvironment } from "../data/environments";
 import type { GeometryPayload, InterpretRequest, InterpretResponse } from "../types";
 
 // Waits for `ms` milliseconds. Used to imitate the delay of a real network call.
@@ -53,7 +52,7 @@ export async function mockInterpret(
   geometry: GeometryPayload,
 ): Promise<InterpretResponse> {
   await sleep(700);
-  const env = getEnvironment(req.environment_id);
+  const env = req.environment;
 
   // ----- Hatch: clamp the rim and pressurize the cabin side -----
   if (req.part_id === "hatch") {
@@ -134,7 +133,9 @@ export async function mockInterpret(
     },
     assistant_message:
       `Using ${env.name} conditions (gravity ${env.gravity_m_s2} m/s²). I fixed the two mounting holes and put the load on the end pad.` +
-      (mass !== null
+      (mass !== null && env.gravity_m_s2 === 0
+        ? " There is no gravity here, so a mass has no weight. Enter the force in newtons instead, for example from thrust or docking."
+        : mass !== null
         ? ` Weight is mass × gravity, so ${mass} kg weighs ${(mass * env.gravity_m_s2).toFixed(0)} N here.`
         : " You gave a force, so I used it as written."),
     clarifications: [

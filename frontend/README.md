@@ -1,7 +1,7 @@
 # Habitat Structure Copilot: frontend
 
 React + TypeScript + Three.js frontend. A user picks one of two code-built habitat parts, chooses
-Moon or Mars, and describes a load or pressure in plain English. The app proposes a setup, shows
+a destination, and describes a load or pressure in plain English. The app proposes a setup, shows
 the surfaces it picked, and after the user confirms it checks the part against the material's
 yield strength and reports a safety factor with a hand calculation.
 
@@ -65,12 +65,26 @@ temperature. Every result lists these in its assumptions.
 
 ## Off-Earth conditions
 
-The user picks a destination (Moon or Mars) and the app applies its conditions:
+The user types a destination and the app applies its conditions. Moon, Mars, Mercury, Venus,
+Earth, Pluto, and free space (orbit) are bundled. For any other place the app asks for the surface gravity and
+outside pressure, and uses the numbers the user enters. The values are not shown in a panel, but
+they appear in the results (the gravity line of the hand calculation) and in the weight tag next
+to a mass load:
 
-- `src/data/environments.ts` holds gravity, outside pressure, and temperature, with source links.
-  Values are from the NASA [Moon](https://nssdc.gsfc.nasa.gov/planetary/factsheet/moonfact.html)
-  and [Mars](https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html) fact sheets (planetary
-  reference data, not mission data). It is a static file, so it uses no external API.
+- `src/data/environments.ts` holds gravity and outside pressure for each bundled body, with
+  source links. Values are from NASA's planetary fact sheets
+  ([Moon](https://nssdc.gsfc.nasa.gov/planetary/factsheet/moonfact.html),
+  [Mars](https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html),
+  [Mercury](https://nssdc.gsfc.nasa.gov/planetary/factsheet/mercuryfact.html),
+  [Venus](https://nssdc.gsfc.nasa.gov/planetary/factsheet/venusfact.html),
+  [Earth](https://nssdc.gsfc.nasa.gov/planetary/factsheet/earthfact.html),
+  [Pluto](https://nssdc.gsfc.nasa.gov/planetary/factsheet/plutofact.html)). These are planetary
+  reference data, not mission data. It is a static file, so it uses no external API. The gas and
+  ice giants are left out because they have no solid surface to build on. "Free space (orbit)"
+  (also found by typing orbit, space, microgravity, or zero g) is a modeling choice, not a
+  fact-sheet value: gravity 0 and a vacuum outside, with a link to NASA's microgravity page. With
+  no gravity nothing has weight, so a mass cannot be used as a load there. The card asks for the
+  force in newtons instead (thrust, docking, handling).
 - **Weight depends on the destination.** Give a mass and the app computes weight = mass × that
   place's gravity, so the same 500 kg rack loads the bracket about 2.3 times harder on Mars
   than on the Moon.
@@ -84,7 +98,6 @@ The user picks a destination (Moon or Mars) and the app applies its conditions:
   filled from the verdict and your inputs, not AI output.
 - Environment, pressure loads, and the pass target are attached by the frontend from that data and
   the user's inputs, never by the AI. The AI only picks surfaces and reads numbers the user wrote.
-- Temperature is displayed for context and not simulated.
 
 ## Placeholders to cite before submission
 
@@ -103,7 +116,7 @@ The user picks a destination (Moon or Mars) and the app applies its conditions:
 | `src/api.ts` | The only file that talks to the backend; switches between demo mode and `/api/*`. |
 | `src/data/parts.ts` | The two parts: fixed dimensions, thickness range, example prompts. |
 | `src/data/materials.ts` | Material properties (placeholders, see above). |
-| `src/data/environments.ts` | Sourced Moon and Mars conditions. |
+| `src/data/environments.ts` | Conditions for Moon, Mars, Mercury, Venus, Earth, Pluto, and free space, plus the helper for user-entered places. |
 | `src/data/cabinAtmospheres.ts` | NASA cabin pressures (ISS, lunar and Mars habitats) and the crew exposure range. |
 | `src/parts/geometry.ts` | Builds the two parts in code, with stable face IDs. Always runs in the browser. |
 | `src/mocks/interpret.ts` | Fake AI: reads mass, force, and kPa from the prompt with regexes. |
@@ -151,7 +164,7 @@ Every file starts with a comment saying what it is for, and the code is commente
 people new to React and Three.js. A good reading order:
 
 1. `src/types.ts` for the data shapes everything passes around.
-2. `src/data/` for the plain numbers (parts, materials, Moon and Mars).
+2. `src/data/` for the plain numbers (parts, materials, destinations).
 3. `src/solver/analytic.ts`, then `src/solver/solve.ts`, for the engineering.
 4. `src/App.tsx` for how the screens connect, then the files in `src/components/`.
 5. `src/parts/geometry.ts` and `src/components/Viewport.tsx` last. They are the most involved.

@@ -23,6 +23,8 @@ export type PickMode = "support" | "load" | "pressure" | null;
 interface Props {
   spec: ProposedSpec;
   env: Environment;
+  // What is missing from a typed destination (its gravity or pressure), or null.
+  envProblem: string | null;
   pressureFaces: string[];
   // Kept as text, not a number, so the user can clear the box or type "1." without the
   // field fighting them. It is converted to a number when needed.
@@ -119,6 +121,9 @@ export function ConfirmationCard(p: Props) {
     if (p.pressureFaces.length === 0) problems.push("Choose the face the cabin pressure acts on.");
     // `!(cabin > 0)` is also true when cabin is NaN (an empty box), which `cabin <= 0` is not.
     if (!(cabin > 0)) problems.push("Enter the cabin pressure in kPa.");
+  } else if (load && loadUnit === "kg" && p.env.gravity_m_s2 === 0) {
+    // In free space nothing weighs anything, so a mass cannot give a force.
+    problems.push("A mass has no weight in free space. Switch the load to N and enter the force, for example from thrust or docking.");
   } else if (isImported) {
     // An imported part needs at least one load: a force, a pressure, or both.
     if (!load && p.pressureFaces.length === 0) problems.push("Add a force on a face, a pressure on a face, or both.");
@@ -131,6 +136,7 @@ export function ConfirmationCard(p: Props) {
   }
   // A force needs a direction. The all-zero vector points nowhere.
   if (load && showLoad && load.direction.every((c) => c === 0)) problems.push("The force direction cannot be all zeros.");
+  if (p.envProblem) problems.push(p.envProblem);
   if (!(parseFloat(p.minSafetyFactor) >= 1)) problems.push("Enter a target safety factor of 1 or more.");
 
   // Props shared by every row that stands for a face: highlight the row, and highlight the
@@ -277,6 +283,9 @@ export function ConfirmationCard(p: Props) {
                   />
                 ))}
               </label>
+            )}
+            {p.env.gravity_m_s2 === 0 && (
+              <span className="fineprint">No gravity here, so nothing has weight. Enter the force in N.</span>
             )}
             {/* When the load is a mass, show what it weighs at this destination. */}
             {loadUnit === "kg" && (

@@ -18,7 +18,7 @@
 // redraws the component with the new value. Never change a state value directly.
 
 import { SAFETY_BAND } from "./data/safetyBand";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { USE_MOCK, importStep, interpret, loadPart, solve } from "./api";
 import { ConfirmationCard, type PickMode } from "./components/ConfirmationCard";
 import { EnvironmentPanel } from "./components/EnvironmentPanel";
@@ -26,7 +26,7 @@ import { PartPanel } from "./components/PartPanel";
 import { ResultsCard, type ResultKind } from "./components/ResultsCard";
 import { Thread } from "./components/Thread";
 import { Viewport, type ArrowSpec, type FieldSpec } from "./components/Viewport";
-import { getEnvironment, type EnvId } from "./data/environments";
+import { customEnvironment, findEnvironment } from "./data/environments";
 import { PARTS, getPart } from "./data/parts";
 import { unitVector } from "./solver/vector";
 import { crewConsequence } from "./solver/consequence";
@@ -53,7 +53,7 @@ const newId = () => Math.random().toString(36).slice(2);
 const WELCOME: ChatMessage = {
   id: "welcome",
   role: "assistant",
-  text: "Import a STEP file (or try a sample part), choose Moon or Mars, then describe the test in plain English. I will propose the supports, load, and direction, and show you the surfaces I picked before anything runs.",
+  text: "Import a STEP file (or try a sample part), type where it will be used (Mars, the Moon, or any other place), then describe the test in plain English. I will propose the supports, load, and direction, and show you the surfaces I picked before anything runs.",
 };
 
 /** Gets a readable message out of whatever was thrown. */
@@ -70,8 +70,11 @@ export default function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   // The setup the AI proposed, which the user edits on the confirmation card.
   const [spec, setSpec] = useState<ProposedSpec | null>(null);
-  // Which destination is selected. Mars is the default.
-  const [envId, setEnvId] = useState<EnvId>("mars");
+  // The destination the user typed. Mars is the default. If the name is not one the app knows,
+  // the user also enters the gravity and outside pressure (kept as text, like the other boxes).
+  const [destination, setDestination] = useState("Mars");
+  const [customGravity, setCustomGravity] = useState("");
+  const [customPressureKPa, setCustomPressureKPa] = useState("");
   // Ids of the faces the cabin pressure pushes on (hatch only).
   const [pressureFaces, setPressureFaces] = useState<string[]>([]);
   // Typed text, so the field can be empty or half-typed.
@@ -96,7 +99,27 @@ export default function App() {
   const say = (role: ChatMessage["role"], text: string) =>
     setMessages((m) => [...m, { id: newId(), role, text }]);
 
-  const env = getEnvironment(envId);
+  // Work out which destination is in use: a bundled one if the typed name matches, otherwise
+  // one built from the numbers the user entered. `envProblem` says what is missing, if anything.
+  const knownEnv = findEnvironment(destination);
+  const custom = customEnvironment(destination, customGravity, customPressureKPa);
+  const env = knownEnv ?? custom.env;
+  const envProblem = knownEnv ? null : custom.problem;
+
+  // When the destination changes after a check has run, the old results used other conditions,
+  // so clear them. `lastEnvKey` remembers the previous values to notice a change.
+  const envKey = `${env.name}|${env.gravity_m_s2}|${env.external_pressure_Pa}`;
+  const lastEnvKey = useRef(envKey);
+  useEffect(() => {
+    if (lastEnvKey.current === envKey) return;
+    lastEnvKey.current = envKey;
+    if (stage === "results") {
+      setResult(null);
+      setStage("confirming");
+      say("system", "The old results used different conditions, so they were cleared. Run again to update.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [envKey]);
 
   // ---------- choosing and adjusting the part ----------
 
@@ -173,6 +196,8 @@ export default function App() {
   // Called when the user sends a request. Asks the AI for a proposed setup.
   const send = async (text: string) => {
     if (!geometry) return;
+    // The destination must be usable first, because the load depends on its gravity.
+    if (envProblem) return say("system", envProblem);
     // If the request fails, return to the step we were on.
     const previousStage = spec ? "confirming" : "ready";
     say("user", text);
@@ -184,7 +209,12 @@ export default function App() {
         {
           prompt: text,
           part_id: geometry.part_id,
-          environment_id: envId,
+          environment_id: env.id,
+          environment: {
+            name: env.name,
+            gravity_m_s2: env.gravity_m_s2,
+            external_pressure_Pa: env.external_pressure_Pa,
+          },
           // An imported file is only known to the backend by its id, so also send the face
           // list (without triangles) that the AI chooses from.
           ...(geometry.part_id === "imported"
@@ -214,7 +244,7 @@ export default function App() {
 
   // Called when the user confirms. Builds the complete spec and sends it to the solver.
   const run = async () => {
-    if (!spec || !geometry) return;
+    if (!spec || !geometry || envProblem) return;
     // The environment, pressure loads, target, and force-from-mass come from our bundled data
     // and the user's inputs, never from the AI.
     // Cabin pressure is typed in kPa, but the solver wants pascals (1 kPa = 1000 Pa).
@@ -250,7 +280,7 @@ export default function App() {
         ...pressureLoads,
       ],
       environment: {
-        name: env.id,
+        name: env.name.toLowerCase(),
         gravity_m_s2: env.gravity_m_s2,
         external_pressure_Pa: env.external_pressure_Pa,
         internal_pressure_Pa: cabinOk ? cabinPa : null,
@@ -337,6 +367,8 @@ export default function App() {
           ...s,
           loads: s.loads.map((l, i) => {
             if (i !== 0) return l;
+            // With no gravity a force cannot be turned into a mass, so keep it in newtons.
+            if (unit === "kg" && env.gravity_m_s2 === 0) return l;
             if (unit === "kg") {
               // Force to mass, rounded to one decimal place.
               const mass = Math.round((l.magnitude_N / env.gravity_m_s2) * 10) / 10;
@@ -359,17 +391,6 @@ export default function App() {
     setSpec((s) => s && { ...s, constraints: s.constraints.filter((c) => c.geometry_id !== id) });
 
   const removePressureFace = (id: string) => setPressureFaces((f) => f.filter((x) => x !== id));
-
-  const changeEnvironment = (id: EnvId) => {
-    if (id === envId) return;
-    setEnvId(id);
-    say("system", `Destination set to ${getEnvironment(id).name}.`);
-    if (stage === "results") {
-      setResult(null);
-      setStage("confirming");
-      say("system", "The old results used different conditions, so they were cleared. Run again to update.");
-    }
-  };
 
   // Called when the user clicks a face in the 3D view. What happens depends on pickMode.
   const onPick = (id: string) => {
@@ -538,6 +559,7 @@ export default function App() {
       <ConfirmationCard
         spec={spec}
         env={env}
+        envProblem={envProblem}
         pressureFaces={pressureFaces}
         cabinPressureKPa={cabinPressureKPa}
         onCabinPressure={setCabinPressureKPa}
@@ -612,7 +634,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <h1>Habitat Structure Copilot</h1>
-        <span className="topbar-sub">Import it. Describe it. Confirm it. Check it on the Moon or Mars.</span>
+        <span className="topbar-sub">Import it. Describe it. Confirm it. Check it on any world.</span>
         {USE_MOCK && <span className="badge-mock">Demo mode</span>}
       </header>
 
@@ -624,8 +646,15 @@ export default function App() {
             key={stage === "empty" || stage === "ready" ? "open" : "closed"}
             defaultOpen={stage === "empty" || stage === "ready"}
             env={env}
+            destination={destination}
+            onDestination={setDestination}
+            known={knownEnv !== null}
+            gravityText={customGravity}
+            onGravity={setCustomGravity}
+            pressureText={customPressureKPa}
+            onPressure={setCustomPressureKPa}
+            problem={envProblem}
             disabled={busy}
-            onChange={changeEnvironment}
           />
           {geometry && (
             <PartPanel

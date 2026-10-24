@@ -946,3 +946,11 @@ select {
   margin-top: 6px;
   max-width: 100%;
 }
+
+/* The destination text box. It takes the rest of the row, unlike the narrow number boxes. */
+.dest input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  text-align: left;
+}
