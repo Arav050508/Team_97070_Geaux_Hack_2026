@@ -68,6 +68,8 @@ MATERIALS = ["aluminum_6061_t6", "steel_a36"]
 SYSTEM_PROMPT = """You provide a structural analysis. Choose faces ONLY from the list given.
 
 Do not invent or change gravity, pressures, material properties, or safety factors. If the user provides a mass, return mass_kg and leave force_N null.
+
+The environment uses a coordinate system where Z is the vertical axis and X/Y are the horizontal axes
 """
 
 RESPONSE_SCHEMA = {
@@ -198,14 +200,14 @@ def interpret_with_gemini(body: dict, model: dict) -> dict:
     """
     Actual Gemini implementation for the interpreter. 
 
-    Requires GEMINI_MODEL to be set in the .env (defaults to gemini-2.5-flash)
+    Requires GEMINI_MODEL to be set in the .env (defaults to gemini-3.8-flash)
     """
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
     faces = [f for f in model["faces"] if f["candidate"]]
 
     response = client.models.generate_content(
-        model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
+        model=os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
         contents="Request: {}\nFaces: {}".format(body["prompt"], json.dumps(faces)),
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,
