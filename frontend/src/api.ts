@@ -83,5 +83,40 @@ export async function solve(
     spec,
     part_id: geometry.part_id,
     thickness_mm: geometry.thickness_mm,
+    // Imported files only: tells the backend which stored STEP model to analyze.
+    model_id: geometry.model_id,
   });
+}
+
+/**
+ * Sends a STEP file to the backend and gets back the part as faces the viewer can draw.
+ *
+ * The browser cannot read STEP files itself, so there is no demo-mode version of this. In
+ * demo mode it throws a clear message instead of pretending, and the user can still try the
+ * two sample parts.
+ *
+ * The backend must answer POST /api/import-step (multipart form, field "file") with a
+ * GeometryPayload: part_id "imported", a model_id, the file name as `name`, and one entry in
+ * `faces` per CAD face, each with triangles in `positions` (meters) and `candidate: true`
+ * for faces the user may pick.
+ */
+export async function importStep(file: File): Promise<GeometryPayload> {
+  if (USE_MOCK) {
+    throw new Error(
+      "STEP import needs the backend, and the app is in demo mode. Start the backend and set VITE_USE_MOCK=false, or try a sample part.",
+    );
+  }
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch("/api/import-step", { method: "POST", body: form });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`/api/import-step failed (${res.status}) ${detail}`.trim());
+  }
+  const geo = (await res.json()) as GeometryPayload;
+  // A quick sanity check, so a malformed reply gives a clear error instead of a blank view.
+  if (!geo || !Array.isArray(geo.faces) || geo.faces.length === 0) {
+    throw new Error("The backend returned a model with no faces.");
+  }
+  return { ...geo, part_id: "imported", thickness_mm: geo.thickness_mm ?? 0 };
 }

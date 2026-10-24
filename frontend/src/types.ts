@@ -15,7 +15,8 @@ export type Vec3 = [number, number, number];
 // ---------- Parts (built in code by src/parts/geometry.ts) ----------
 
 // The two parts the app can model. Adding a third part means adding a name here first.
-export type PartId = "bracket" | "hatch";
+// "imported" is a STEP file the user uploaded. The other two are the built-in sample parts.
+export type PartId = "bracket" | "hatch" | "imported";
 
 // What kind of surface a face is. The viewer and the AI use this to tell holes (cylindrical)
 // from flat faces (planar).
@@ -52,6 +53,10 @@ export interface FaceMesh extends FaceMeta {
 /** Everything the viewer needs to draw one part. */
 export interface GeometryPayload {
   part_id: PartId;
+  // Imported files only: the id the backend gave the stored model. It is sent back with the
+  // solve request so the backend knows which file to analyze.
+  model_id?: string;
+  // Built-in parts only. An imported file has no single adjustable thickness (0 here).
   thickness_mm: number;
   // Display name shown in the corner of the 3D view.
   name: string;
@@ -130,7 +135,8 @@ export interface SpecOptions {
  * adds the environment, criteria, and options before running.
  */
 export interface SimulationSpec {
-  analysis_type: "analytic_screening";
+  // "analytic_screening" is the browser formulas. "fea" is the Ansys analysis on the backend.
+  analysis_type: "analytic_screening" | "fea";
   units: "SI"; // meters, newtons, pascals, kilograms
   // `name` is a material id from src/data/materials.ts, for example "aluminum_6061_t6".
   // `source` records who chose it, so the UI can warn when the AI guessed.
@@ -185,6 +191,10 @@ export interface InterpretRequest {
   prompt: string;
   part_id: PartId;
   environment_id: "moon" | "mars";
+  // Imported files only: which stored model this is, and the faces the AI can choose from
+  // (ids, labels, areas, positions, normals). Triangles are left out to keep the request small.
+  model_id?: string;
+  faces?: FaceMeta[];
 }
 
 /** What the AI sends back. */

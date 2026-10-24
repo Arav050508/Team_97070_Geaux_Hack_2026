@@ -25,7 +25,7 @@ as is and the backend only needs the AI call.
 
 ## The flow
 
-1. Pick a part: **Equipment bracket** (a plate bolted at one end holding heavy equipment) or
+1. Import a STEP file (needs the backend), or pick a sample part: **Equipment bracket** (a plate bolted at one end holding heavy equipment) or
    **Hatch plate** (a round cover with cabin air on one side). Adjust its thickness.
 2. Describe the setup in plain English, for example "Fix the two mounting holes and hang a 500 kg
    equipment rack from the end pad."
@@ -130,10 +130,16 @@ deflection formulas.
 
 | Endpoint | Request | Response |
 | --- | --- | --- |
-| `POST /api/interpret` | `{ prompt, part_id, environment_id }` | `InterpretResponse` |
-| `POST /api/solve` | `{ spec, part_id, thickness_mm }` | `SolveResult` |
+| `POST /api/import-step` | multipart form, field `file` (a .step or .stp) | `GeometryPayload` with `part_id: "imported"` and a `model_id` |
+| `POST /api/interpret` | `{ prompt, part_id, environment_id }`, plus `model_id` and `faces` (face metadata, no triangles) for an imported part | `InterpretResponse` |
+| `POST /api/solve` | `{ spec, part_id, thickness_mm, model_id }`, with `spec.analysis_type` set to `"fea"` for an imported part | `SolveResult` |
 
-Shapes are in `src/types.ts`. Parts are built in the browser, so there is no geometry endpoint. The
+For an imported part the frontend sends force directions as unit vectors, loads in newtons, and
+pressures in pascals. The backend should return face ids that match the ones it sent in
+`/api/import-step`, and per-vertex result fields aligned with each face's `positions`. In demo
+mode `/api/import-step` is not called: the app shows a message and the sample parts still work.
+
+Shapes are in `src/types.ts`. The two sample parts are built in the browser, so they need no geometry endpoint. The
 geometry payload carries per-face triangles so the viewer can highlight any face by its ID. Result
 fields are per-vertex scalars aligned with each face's `positions`. The Python solver should
 reproduce `src/solver/solve.ts` and pass the same checks.

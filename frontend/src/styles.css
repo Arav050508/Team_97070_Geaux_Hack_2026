@@ -908,3 +908,33 @@ select {
   flex-wrap: wrap;
   gap: 6px;
 }
+
+/* ---------- STEP import ---------- */
+
+/* The import choice is a <label> that wraps a hidden file input. It already looks like the
+   sample-part buttons (.part-choice). This adds a solid accent border so it reads as the main
+   way to start. The background, border, and radius copy the default button look, since a
+   label does not get them for free. */
+.import-choice {
+  background: var(--panel-2);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* Hides an element from the screen but keeps it available to keyboard and screen readers.
+   Used for the real file input, so the label above can act as its button. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Shows a focus ring on the label when the hidden file input has keyboard focus. */
+.import-choice:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

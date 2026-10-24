@@ -15,6 +15,8 @@ interface Props {
 
 /** The chosen part and its one adjustable dimension. */
 export function PartPanel({ geometry, disabled, onThickness, onChangePart }: Props) {
+  // An imported STEP file has no thickness box, because its shape comes from the file.
+  const imported = geometry.part_id === "imported";
   const part = getPart(geometry.part_id);
   const { min, max } = part.thickness;
   // What is currently typed in the box, as text. It can differ from the real thickness
@@ -36,11 +38,14 @@ export function PartPanel({ geometry, disabled, onThickness, onChangePart }: Pro
   return (
     <section className="part-panel" aria-label="Part">
       <div className="part-row">
-        <strong>{part.name}</strong>
+        <strong>{imported ? geometry.name : part.name}</strong>
         <button className="link" disabled={disabled} onClick={onChangePart}>
           Change part
         </button>
       </div>
+      {imported ? (
+        <span className="fineprint">Imported STEP file. The shape comes from the file.</span>
+      ) : (
       <label className="inline">
         <span>Thickness</span>
         <input
@@ -57,9 +62,12 @@ export function PartPanel({ geometry, disabled, onThickness, onChangePart }: Pro
         />
         <span>mm</span>
       </label>
+      )}
+      {!imported && (
       <span className="fineprint">
         Allowed {min} to {max} mm. Thicker is stronger, so try it if a result fails.
       </span>
+      )}
     </section>
   );
 }

@@ -29,6 +29,19 @@ function psiaText(psia: number): string {
 export function crewConsequence(i: ConsequenceInput): string[] {
   const lines: string[] = [];
 
+  // An imported part: the app does not know what the part is for, so it says only what the
+  // verdict means for the part itself and leaves the rest to the engineer.
+  if (i.partId === "imported") {
+    if (i.verdict === "pass") {
+      lines.push("The part is predicted to hold this load with the margin you asked for.");
+    } else if (i.verdict === "marginal") {
+      lines.push("The part is predicted to hold, but with less margin than your target.");
+    } else {
+      lines.push("The part is predicted to yield under this load. Do not rely on it as modeled.");
+    }
+    return lines;
+  }
+
   if (i.partId === "hatch") {
     if (i.verdict === "pass") {
       lines.push("The hatch plate is predicted to hold the pressure difference with the margin you asked for.");

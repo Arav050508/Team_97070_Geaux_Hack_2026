@@ -9,6 +9,7 @@
 // The "Confirm and check design" button stays disabled until the `problems` list below is
 // empty, so a bad setup can never reach the solver.
 
+import { useState } from "react";
 import { SAFETY_BAND } from "../data/safetyBand";
 import { CABIN_ATMOSPHERES, kPaToPsia, psiaToKPa } from "../data/cabinAtmospheres";
 import type { Environment } from "../data/environments";
@@ -43,6 +44,9 @@ interface Props {
   onMinSafetyFactor: (v: string) => void;
   onChangeLoadValue: (unit: "N" | "kg", value: number) => void;
   onChangeLoadUnit: (unit: "N" | "kg") => void;
+  // The user picked a new direction for the force. Any non-zero vector is accepted; the
+  // solver normalizes it.
+  onChangeLoadDirection: (d: Vec3) => void;
   onChangeMaterial: (name: string) => void;
   onAnswer: (id: string, value: string) => void;
   onRemoveSupport: (id: string) => void;
@@ -65,11 +69,35 @@ function describeDirection(d: Vec3): string {
   return hit ? hit[1] : `[${d.join(", ")}]`;
 }
 
+// The six axis directions offered in the direction menu, in the order they appear.
+const DIRECTION_PRESETS: Array<{ key: string; label: string; v: Vec3 }> = [
+  { key: "-y", label: "Down (-Y)", v: [0, -1, 0] },
+  { key: "+y", label: "Up (+Y)", v: [0, 1, 0] },
+  { key: "+x", label: "Along +X", v: [1, 0, 0] },
+  { key: "-x", label: "Along -X", v: [-1, 0, 0] },
+  { key: "+z", label: "Along +Z", v: [0, 0, 1] },
+  { key: "-z", label: "Along -Z", v: [0, 0, -1] },
+];
+
+/** The menu key for a direction: a preset key, or "custom" for anything else. */
+function directionKey(d: Vec3): string {
+  const hit = DIRECTION_PRESETS.find(({ v }) => v[0] === d[0] && v[1] === d[1] && v[2] === d[2]);
+  return hit ? hit.key : "custom";
+}
+
 export function ConfirmationCard(p: Props) {
+  // True after the user picks "Custom vector" in the direction menu, so the three number boxes
+  // stay on screen even while the typed numbers happen to match an axis direction.
+  const [customDirection, setCustomDirection] = useState(false);
   // The readable name for a face id, such as "Mounting hole A". Falls back to the id.
   const label = (id: string) => p.geometry.faces.find((f) => f.id === id)?.label ?? id;
   const load = p.spec.loads[0];
   const isHatch = p.geometry.part_id === "hatch";
+  // An imported STEP file can have a force, a pressure, or both. The built-in bracket has a
+  // force only, and the built-in hatch has a pressure only.
+  const isImported = p.geometry.part_id === "imported";
+  const showLoad = !isHatch;
+  const showPressure = isHatch || isImported;
   const material = getMaterial(p.spec.material.name);
   // The user can enter the load as a mass (kg) or as a force (N). A load that carries a
   // mass_kg value is shown in kg.
@@ -89,11 +117,18 @@ export function ConfirmationCard(p: Props) {
     if (p.pressureFaces.length === 0) problems.push("Choose the face the cabin pressure acts on.");
     // `!(cabin > 0)` is also true when cabin is NaN (an empty box), which `cabin <= 0` is not.
     if (!(cabin > 0)) problems.push("Enter the cabin pressure in kPa.");
+  } else if (isImported) {
+    // An imported part needs at least one load: a force, a pressure, or both.
+    if (!load && p.pressureFaces.length === 0) problems.push("Add a force on a face, a pressure on a face, or both.");
+    if (load && !(loadN > 0)) problems.push("Enter a force or mass greater than zero.");
+    if (p.pressureFaces.length > 0 && !(cabin > 0)) problems.push("Enter the pressure in kPa.");
   } else if (!load) {
     problems.push("Choose a face to load.");
   } else if (!(loadN > 0)) {
     problems.push(`Enter a ${loadUnit === "kg" ? "mass" : "force"} greater than zero.`);
   }
+  // A force needs a direction. The all-zero vector points nowhere.
+  if (load && showLoad && load.direction.every((c) => c === 0)) problems.push("The force direction cannot be all zeros.");
   if (!(parseFloat(p.minSafetyFactor) >= 1)) problems.push("Enter a target safety factor of 1 or more.");
 
   // Props shared by every row that stands for a face: highlight the row, and highlight the
@@ -143,8 +178,8 @@ export function ConfirmationCard(p: Props) {
         </button>
       </div>
 
-      {/* Applied load: the bracket only. The hatch is loaded by pressure instead. */}
-      {!isHatch && (
+      {/* Applied load: the bracket and imported parts. The built-in hatch is loaded by pressure. */}
+      {showLoad && (
       <div className="group">
         <div className="group-title">
           <span className="swatch swatch-load" /> Applied load
@@ -173,6 +208,45 @@ export function ConfirmationCard(p: Props) {
                 <option value="N">N (force)</option>
               </select>
             </label>
+            {/* Which way the force points. Six axis directions, or a custom vector. */}
+            <label className="inline">
+              <span>Direction</span>
+              <select
+                value={customDirection ? "custom" : directionKey(load.direction)}
+                aria-label="Force direction"
+                onChange={(e) => {
+                  const hit = DIRECTION_PRESETS.find((d) => d.key === e.target.value);
+                  // "Custom" keeps the current numbers so the user can edit them below.
+                  setCustomDirection(!hit);
+                  if (hit) p.onChangeLoadDirection(hit.v);
+                }}
+              >
+                {DIRECTION_PRESETS.map((d) => (
+                  <option key={d.key} value={d.key}>
+                    {d.label}
+                  </option>
+                ))}
+                <option value="custom">Custom vector</option>
+              </select>
+            </label>
+            {(customDirection || directionKey(load.direction) === "custom") && (
+              <label className="inline">
+                {(["X", "Y", "Z"] as const).map((axis, i) => (
+                  <input
+                    key={axis}
+                    type="number"
+                    step={0.1}
+                    aria-label={`Force direction ${axis}`}
+                    value={Number.isFinite(load.direction[i]) ? load.direction[i] : ""}
+                    onChange={(e) => {
+                      const next = [...load.direction] as Vec3;
+                      next[i] = parseFloat(e.target.value);
+                      p.onChangeLoadDirection(next);
+                    }}
+                  />
+                ))}
+              </label>
+            )}
             {/* When the load is a mass, show what it weighs at this destination. */}
             {loadUnit === "kg" && (
               <span className="tag">
@@ -192,18 +266,18 @@ export function ConfirmationCard(p: Props) {
       </div>
       )}
 
-      {/* Cabin pressure: the hatch only. */}
-      {isHatch && (
+      {/* Pressure: the built-in hatch (required) and imported parts (optional). */}
+      {showPressure && (
       <div className="group">
         <div className="group-title">
-          <span className="swatch swatch-pressure" /> Cabin pressure
+          <span className="swatch swatch-pressure" /> {isImported ? "Pressure (optional)" : "Cabin pressure"}
         </div>
         <p className="hint">
           Cabin pressure pushes outward on the faces you pick, against the {p.env.name} outside
           pressure ({p.env.pressure_label}).
         </p>
         <label className="inline">
-          <span>Cabin pressure</span>
+          <span>{isImported ? "Pressure" : "Cabin pressure"}</span>
           <input
             type="number"
             min={0}

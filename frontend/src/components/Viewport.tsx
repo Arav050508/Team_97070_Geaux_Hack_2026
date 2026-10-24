@@ -263,8 +263,10 @@ export function Viewport(props: ViewportProps) {
 
     // Move the camera only when the user switches to a different part. If it moved every
     // time the thickness changed, the view would jump while they type.
-    const samePart = framedPart.current === props.geometry.part_id;
-    framedPart.current = props.geometry.part_id;
+    // An imported file is identified by its model id, because every import has the same part_id.
+    const partKey = props.geometry.model_id ?? props.geometry.part_id;
+    const samePart = framedPart.current === partKey;
+    framedPart.current = partKey;
     if (!box.isEmpty() && !samePart) {
       const center = box.getCenter(new THREE.Vector3());
       const size = box.getSize(new THREE.Vector3()).length(); // the box's diagonal

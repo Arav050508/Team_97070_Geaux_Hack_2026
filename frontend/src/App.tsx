@@ -19,7 +19,7 @@
 
 import { SAFETY_BAND } from "./data/safetyBand";
 import { useMemo, useState } from "react";
-import { USE_MOCK, interpret, loadPart, solve } from "./api";
+import { USE_MOCK, importStep, interpret, loadPart, solve } from "./api";
 import { ConfirmationCard, type PickMode } from "./components/ConfirmationCard";
 import { EnvironmentPanel } from "./components/EnvironmentPanel";
 import { PartPanel } from "./components/PartPanel";
@@ -28,6 +28,7 @@ import { Thread } from "./components/Thread";
 import { Viewport, type ArrowSpec, type FieldSpec } from "./components/Viewport";
 import { getEnvironment, type EnvId } from "./data/environments";
 import { PARTS, getPart } from "./data/parts";
+import { unitVector } from "./solver/vector";
 import { crewConsequence } from "./solver/consequence";
 import { recommend, type DesignOption, type Recommendation } from "./solver/recommend";
 import type {
@@ -42,6 +43,7 @@ import type {
   SolveResult,
   SpecOptions,
   Stage,
+  Vec3,
 } from "./types";
 
 // A random short string, used as a unique id for each chat message.
@@ -51,7 +53,7 @@ const newId = () => Math.random().toString(36).slice(2);
 const WELCOME: ChatMessage = {
   id: "welcome",
   role: "assistant",
-  text: "Pick a part, choose Moon or Mars, then describe what you want to test in plain English. I will propose a setup and show you the surfaces I picked before anything runs.",
+  text: "Import a STEP file (or try a sample part), choose Moon or Mars, then describe the test in plain English. I will propose the supports, load, and direction, and show you the surfaces I picked before anything runs.",
 };
 
 /** Gets a readable message out of whatever was thrown. */
@@ -111,6 +113,28 @@ export default function App() {
     setPickMode(null);
   };
 
+  // The user chose a STEP file. The backend turns it into faces the viewer can draw.
+  const importFile = async (file: File) => {
+    const name = file.name.toLowerCase();
+    if (!name.endsWith(".step") && !name.endsWith(".stp")) {
+      return say("system", "That is not a STEP file. Choose a file that ends in .step or .stp.");
+    }
+    // 50 MB is a sanity limit. Larger files are likely not a single part.
+    if (file.size > 50 * 1024 * 1024) {
+      return say("system", "That file is over 50 MB. Try a single part instead of a whole assembly.");
+    }
+    say("system", `Reading ${file.name}…`);
+    try {
+      const geo = await importStep(file);
+      clearSetup();
+      setGeometry({ ...geo, name: file.name });
+      setStage("ready");
+      say("system", `Loaded ${file.name} with ${geo.faces.length} faces. Describe the test to continue.`);
+    } catch (e) {
+      say("system", `Could not import the file: ${errMsg(e)}`);
+    }
+  };
+
   const choosePart = async (id: PartId) => {
     try {
       const geo = await loadPart(id, getPart(id).thickness.default);
@@ -157,7 +181,19 @@ export default function App() {
     setStage("interpreting");
     try {
       const res = await interpret(
-        { prompt: text, part_id: geometry.part_id, environment_id: envId },
+        {
+          prompt: text,
+          part_id: geometry.part_id,
+          environment_id: envId,
+          // An imported file is only known to the backend by its id, so also send the face
+          // list (without triangles) that the AI chooses from.
+          ...(geometry.part_id === "imported"
+            ? {
+                model_id: geometry.model_id,
+                faces: geometry.faces.map(({ positions: _positions, ...meta }) => meta),
+              }
+            : {}),
+        },
         geometry,
       );
       setSpec(res.spec);
@@ -186,7 +222,7 @@ export default function App() {
     const cabinOk = cabinPa > 0;
     // Only the hatch has a pressure load. One entry per pressurized face.
     const pressureLoads: PressureLoad[] =
-      geometry.part_id === "hatch" && cabinOk
+      (geometry.part_id === "hatch" || geometry.part_id === "imported") && cabinOk
         ? pressureFaces.map((id) => ({
             type: "pressure_differential",
             geometry_id: id,
@@ -201,12 +237,16 @@ export default function App() {
 
     const finalSpec: SimulationSpec = {
       ...spec,
+      // An imported part is analyzed by the Ansys backend. The built-in parts use the formulas.
+      analysis_type: geometry.part_id === "imported" ? "fea" : spec.analysis_type,
       loads: [
         // If a load was entered as a mass, recompute its force with this destination's
         // gravity. That way switching from Mars to Moon changes the weight correctly.
-        ...spec.loads.map((l) =>
-          l.mass_kg !== undefined ? { ...l, magnitude_N: l.mass_kg * env.gravity_m_s2 } : l,
-        ),
+        // The direction is also scaled to length 1, so a custom vector like [1, 1, 0] is fine.
+        ...spec.loads.map((l) => ({
+          ...(l.mass_kg !== undefined ? { ...l, magnitude_N: l.mass_kg * env.gravity_m_s2 } : l),
+          direction: unitVector(l.direction),
+        })),
         ...pressureLoads,
       ],
       environment: {
@@ -232,7 +272,9 @@ export default function App() {
       }
       setResult(res);
       // Try the other thicknesses and materials with the same setup, to suggest a better design.
-      setRecommendation(recommend(finalSpec, geometry));
+      // Only the built-in parts: the sweep reruns the browser formulas, which do not apply to an
+      // imported part analyzed in Ansys.
+      setRecommendation(geometry.part_id === "imported" ? null : recommend(finalSpec, geometry));
       setResultKind("von_mises");
       setStage("results");
       const verdict =
@@ -243,7 +285,7 @@ export default function App() {
             : "That fails: the stress is above the material's yield strength.";
       say(
         "assistant",
-        `Safety factor ${res.safety_factor?.toFixed(2)} (peak stress ${res.max_von_mises_MPa.toFixed(0)} MPa against ${res.yield_MPa?.toFixed(0)} MPa yield). ${verdict} The hand calculation and assumptions are below.`,
+        `Safety factor ${res.safety_factor?.toFixed(2)} (peak stress ${res.max_von_mises_MPa.toFixed(0)} MPa against ${res.yield_MPa?.toFixed(0)} MPa yield). ${verdict} ${geometry.part_id === "imported" ? "The details and assumptions are below." : "The hand calculation and assumptions are below."}`,
       );
     } catch (e) {
       say("assistant", `The check failed: ${errMsg(e)}`);
@@ -305,6 +347,10 @@ export default function App() {
           }),
         },
     );
+
+  // The user picked a new force direction.
+  const changeLoadDirection = (direction: Vec3) =>
+    setSpec((s) => s && { ...s, loads: s.loads.map((l, i) => (i === 0 ? { ...l, direction } : l)) });
 
   const changeMaterial = (name: string) =>
     setSpec((s) => s && { ...s, material: { name, source: "user_selected" } });
@@ -417,12 +463,16 @@ export default function App() {
   // True while waiting on the AI or the solver.
   const busy = stage === "interpreting" || stage === "solving";
   const canSend = !!geometry;
-  const example = geometry ? getPart(geometry.part_id).example : "";
+  const example = !geometry
+    ? ""
+    : geometry.part_id === "imported"
+      ? "Fix the bottom face and push down on the top face with 2000 N"
+      : getPart(geometry.part_id).example;
 
   const placeholder = !geometry
-    ? "Pick a part first"
+    ? "Import a STEP file or pick a sample part first"
     : stage === "confirming"
-      ? "Change the request, e.g. “make it 800 kg”"
+      ? "Change the request, e.g. make it 800 kg"
       : "Describe the supports and load in plain English";
 
   // ---------- stage card inside the thread ----------
@@ -433,8 +483,37 @@ export default function App() {
     card = (
       <section className="card">
         <header className="card-head">
-          <h3>Pick a part</h3>
+          <h3>Start with a part</h3>
         </header>
+        <div className="group">
+          <div className="group-title">Import your own part</div>
+          {/* The file input is hidden. The label is styled as a button and opens it. */}
+          <label className="part-choice import-choice">
+            <strong>Import a STEP file</strong>
+            <span>
+              A .step or .stp file of one part. The backend reads it and the faces show up on the
+              model, so you can fix supports and apply loads to them.
+            </span>
+            <input
+              type="file"
+              accept=".step,.stp"
+              className="visually-hidden"
+              aria-label="Import a STEP file"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void importFile(file);
+                // Reset so choosing the same file again still fires.
+                e.target.value = "";
+              }}
+            />
+          </label>
+          {USE_MOCK && (
+            <p className="fineprint">
+              Demo mode cannot read STEP files. Run the backend with VITE_USE_MOCK=false to use import.
+            </p>
+          )}
+        </div>
+        <div className="group-title">Or try a sample part (browser fallback demo)</div>
         <div className="part-choices">
           {PARTS.map((p) => (
             // `void` tells TypeScript we are deliberately not waiting for the async call.
@@ -444,7 +523,7 @@ export default function App() {
             </button>
           ))}
         </div>
-        <p className="fineprint">Both parts are built in code, so there is nothing to upload.</p>
+        <p className="fineprint">The sample parts are built in code and checked with textbook formulas in your browser. No upload, no backend.</p>
       </section>
     );
   } else if (stage === "confirming" && spec && geometry) {
@@ -468,6 +547,7 @@ export default function App() {
         onHover={setHoveredId}
         onChangeLoadValue={changeLoadValue}
         onChangeLoadUnit={changeLoadUnit}
+        onChangeLoadDirection={changeLoadDirection}
         onChangeMaterial={changeMaterial}
         onAnswer={(id, value) => setAnswers((a) => ({ ...a, [id]: value }))}
         onRemoveSupport={removeSupport}
@@ -524,7 +604,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <h1>Habitat Structure Copilot</h1>
-        <span className="topbar-sub">Describe it. Confirm it. Check it on the Moon or Mars.</span>
+        <span className="topbar-sub">Import it. Describe it. Confirm it. Check it on the Moon or Mars.</span>
         {USE_MOCK && <span className="badge-mock">Demo mode</span>}
       </header>
 
@@ -593,7 +673,7 @@ export default function App() {
           {showSetup && (
             <div className="overlay br key">
               <span className="swatch swatch-support" /> Support
-              {geometry?.part_id === "bracket" && (
+              {spec && spec.loads.length > 0 && (
                 <>
                   <span className="swatch swatch-load" /> Load
                 </>
@@ -606,7 +686,7 @@ export default function App() {
             </div>
           )}
           {stage === "solving" && <div className="overlay center">Checking…</div>}
-          {!geometry && <div className="overlay center muted">Pick a part to begin</div>}
+          {!geometry && <div className="overlay center muted">Import a STEP file to begin</div>}
         </section>
       </main>
     </div>
