@@ -8,7 +8,7 @@
 
 ## Team
 
-[Arav Gandhi](https://www.linkedin.com/in/arav-gandhi-13b5a6372) (frontend and UX), TODO: add the other members and their links
+[Arav Gandhi](https://www.linkedin.com/in/arav-gandhi-13b5a6372) (frontend and UX), [Amr Mohieldin](https://www.linkedin.com/in/amr-mohieldin-089053425/) (backend), [Jeremy Lin](https://www.linkedin.com/in/jeremylin492987/) (backend), [Braxton Anderson](https://github.com/BracketsA) (frontend and backend), [Kevin Guo](https://www.linkedin.com/in/kevin-guo-14a156353/) (pitch, presentation, and team management)
 
 Team 97070, prompt TODO: add the prompt number from the Devpost page.
 
@@ -25,7 +25,7 @@ Team 97070, prompt TODO: add the prompt number from the Devpost page.
 
 Our prompt was to build something that helps humans sustain life in extreme off-Earth environments. A habitat only keeps people alive if its structure holds. Equipment hangs from brackets that weigh less on the Moon than on Mars, and every hatch has cabin air pushing out on one side and almost nothing pushing back on the other.
 
-Habitat Structure Copilot helps an engineer set up and judge a structural check for a part in a habitat. The intended flow is to import a CAD model of the part, choose Moon or Mars, and describe the test in plain English, for example "Fix the two mounting holes and hang a 500 kg equipment rack from the end pad." The AI asks for the parameters a finite element analysis needs, such as force magnitude and direction, where the force acts, which faces are fixed, the material, and any pressure. The app highlights the surfaces it chose on a 3D model, you check and fix them, and you confirm. The analysis then runs in Ansys through its API (TODO: confirm with the backend team before submission), and the app shows the stress on the model and a safety factor. A safety factor is yield strength divided by peak stress. We treat 1.4 to 2 as acceptable: below 1.4 is a fail, and above 2 the part is heavier than it needs to be.
+Habitat Structure Copilot helps an engineer set up and judge a structural check for a part in a habitat. The intended flow is to import a STEP file of the part, choose Moon or Mars, and describe the test in plain English, for example "Fix the two mounting holes and hang a 500 kg equipment rack from the end pad." The AI asks for the parameters a finite element analysis needs, such as force magnitude and direction, where the force acts, which faces are fixed, the material, and any pressure. The app highlights the surfaces it chose on a 3D model, you check and fix them, and you confirm. The analysis then runs in Ansys through its API (TODO: confirm with the backend team before submission), and the app shows the stress on the model and a safety factor. A safety factor is yield strength divided by peak stress. We treat 1.4 to 2 as acceptable: below 1.4 is a fail, and above 2 the part is heavier than it needs to be.
 
 The frontend also includes two built-in parts, an equipment bracket and a round hatch plate, with a solver that runs in the browser using textbook formulas. It works without a backend, so it is the fallback demo. In that mode the app shows the hand calculation line by line.
 
