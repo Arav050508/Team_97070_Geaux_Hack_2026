@@ -374,7 +374,14 @@ export default function App() {
   // Called when the user clicks a face in the 3D view. What happens depends on pickMode.
   const onPick = (id: string) => {
     // Clicks do nothing unless a pick mode is on and the confirmation card is showing.
-    if (!spec || stage !== "confirming" || !pickMode) return;
+    if (!pickMode) return;
+    applyPick(pickMode, id);
+  };
+
+  // Adds, moves, or removes a face for one role. It is shared by clicks on the 3D model and by
+  // the "Choose from a list" menus on the card, so the keyboard does the same thing as the mouse.
+  const applyPick = (pickMode: "support" | "load" | "pressure", id: string) => {
+    if (!spec || stage !== "confirming") return;
     const isSupport = spec.constraints.some((c) => c.geometry_id === id);
     const isLoad = spec.loads.some((l) => l.geometry_id === id);
 
@@ -552,6 +559,7 @@ export default function App() {
         onAnswer={(id, value) => setAnswers((a) => ({ ...a, [id]: value }))}
         onRemoveSupport={removeSupport}
         onSetPickMode={setPickMode}
+        onPickFromList={applyPick}
         onRun={run}
       />
     );

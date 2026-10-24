@@ -30,7 +30,8 @@ as is and the backend only needs the AI call.
 2. Describe the setup in plain English, for example "Fix the two mounting holes and hang a 500 kg
    equipment rack from the end pad."
 3. Review the proposal. Hover a row to highlight its surface; edit the load, material, target
-   safety factor, and the clarifying questions; or pick surfaces directly on the model.
+   safety factor, and the clarifying questions; or pick surfaces directly on the model. Each pick button has a "choose from a list" menu
+   next to it, so the whole flow also works from the keyboard.
 4. Confirm. Results show a PASS / BELOW TARGET / FAIL banner, a stress colormap, the hand
    calculation, and the assumptions.
 5. Read the design options. The app reruns the same check at every whole-millimeter thickness
@@ -91,8 +92,8 @@ The user picks a destination (Moon or Mars) and the app applies its conditions:
   values entered from general knowledge. Check each against a datasheet and add the link here.
 - Cabin pressure presets are cited in `src/data/cabinAtmospheres.ts` (NASA-STD-3001 Technical
   Brief OCHMO-TB-003 for 14.7 psia, and NASA/TP-2010-216134 for 8.0 and 7.6 psia). The 5.0 to 15.0
-  psia crew exposure range also comes from OCHMO-TB-003. Open both PDFs and confirm the numbers
-  before submitting. The example prompt's 101 kPa is the ISS-type value rounded.
+  psia crew exposure range also comes from OCHMO-TB-003. The example prompt's 101 kPa is the ISS-type value
+  rounded.
 
 ## Where things live
 

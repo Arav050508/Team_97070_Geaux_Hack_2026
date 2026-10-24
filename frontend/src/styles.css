@@ -938,3 +938,11 @@ select {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* The "choose from a list" menus on the confirmation card. They sit under the pick buttons and
+   give keyboard users a way to choose faces without clicking the 3D model. */
+.face-list {
+  display: block;
+  margin-top: 6px;
+  max-width: 100%;
+}

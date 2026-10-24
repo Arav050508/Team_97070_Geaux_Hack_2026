@@ -51,6 +51,8 @@ interface Props {
   onAnswer: (id: string, value: string) => void;
   onRemoveSupport: (id: string) => void;
   onSetPickMode: (mode: PickMode) => void;
+  // Choose a face from a menu instead of clicking the model. Does the same as a click.
+  onPickFromList: (mode: "support" | "load" | "pressure", id: string) => void;
   onRun: () => void;
 }
 
@@ -139,6 +141,34 @@ export function ConfirmationCard(p: Props) {
     onMouseLeave: () => p.onHover(null),
   });
 
+  // A menu for choosing a face without the mouse. It lists the faces that can still be used
+  // (not already a support, the load, or a pressure face). Choosing one adds it, then the menu
+  // goes back to its heading so another face can be chosen.
+  const faceList = (mode: "support" | "load" | "pressure", heading: string) => {
+    const used = new Set([
+      ...p.spec.constraints.map((c) => c.geometry_id),
+      ...p.spec.loads.map((l) => l.geometry_id),
+      ...p.pressureFaces,
+    ]);
+    const free = p.geometry.faces.filter((f) => f.candidate && !used.has(f.id));
+    if (free.length === 0) return null;
+    return (
+      <select
+        className="face-list"
+        aria-label={heading}
+        value=""
+        onChange={(e) => e.target.value && p.onPickFromList(mode, e.target.value)}
+      >
+        <option value="">{heading}</option>
+        {free.map((f) => (
+          <option key={f.id} value={f.id}>
+            {f.label} ({(f.area_m2 * 1e4).toFixed(1)} cm²)
+          </option>
+        ))}
+      </select>
+    );
+  };
+
   return (
     <section className="card" aria-label="Confirm simulation setup">
       <header className="card-head">
@@ -176,6 +206,7 @@ export function ConfirmationCard(p: Props) {
             ? `Click ${isHatch ? "the rim" : "holes"} on the model… (done)`
             : "+ Pick support on model"}
         </button>
+        {faceList("support", "Or choose a support from a list")}
       </div>
 
       {/* Applied load: the bracket and imported parts. The built-in hatch is loaded by pressure. */}
@@ -263,6 +294,7 @@ export function ConfirmationCard(p: Props) {
         >
           {p.pickMode === "load" ? "Click the loaded face… (done)" : "Pick load face on model"}
         </button>
+        {faceList("load", "Or choose the loaded face from a list")}
       </div>
       )}
 
@@ -333,6 +365,7 @@ export function ConfirmationCard(p: Props) {
         >
           {p.pickMode === "pressure" ? "Click pressurized faces… (done)" : "+ Pick pressurized face"}
         </button>
+        {faceList("pressure", "Or choose a pressurized face from a list")}
       </div>
       )}
 
