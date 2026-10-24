@@ -3,6 +3,12 @@
 A small FastAPI server for the frontend. It imports STEP files, proposes the test setup, and
 solves it in Ansys.
 
+## Setup
+
+Rename `.env.example` to `.env` and populate it with your actual Google Gemini API key and preferred model.
+
+If a model is not set, it will default to `gemini-3.8-flash`.
+
 ## Run
 
 ```powershell
