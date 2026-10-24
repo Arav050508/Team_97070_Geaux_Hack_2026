@@ -570,6 +570,8 @@ select {
   position: relative;
   min-width: 0;
   min-height: 0;
+  /* Nothing inside the 3D area may push the page wider or taller. */
+  overflow: hidden;
 }
 /* The div Three.js draws its canvas into (see Viewport.tsx). It fills the whole stage. */
 .viewport-mount {
@@ -579,6 +581,9 @@ select {
 /* The canvas is a block element so no stray gap appears under it. */
 .viewport-mount canvas {
   display: block;
+  /* The canvas fills its box. Its drawing resolution is set in Viewport.tsx. */
+  width: 100%;
+  height: 100%;
   cursor: grab;
 }
 
@@ -644,8 +649,7 @@ select {
 
 /* ---------- environment panel ---------- */
 
-/* The Moon or Mars panel at the top of the sidebar. */
-/* ---------- environment panel ---------- */
+/* The destination panel at the top of the sidebar. */
 
 /* Stack the panels in the sidebar vertically. This extends the .sidebar rule near the top. */
 .sidebar {

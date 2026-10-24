@@ -2,7 +2,7 @@
 
   # Habitat Structure Copilot
 
-  Describe a part in plain English, type a destination such as the Moon or Mars, and get a pass or fail verdict with the hand calculation, plus the lightest design that still passes.
+  Import a part, say where it will be used and how it is loaded, confirm the setup on a 3D model, and get a safety factor for it on the Moon, Mars, in orbit, or anywhere else you can give numbers for.
 
 </div>
 
@@ -23,28 +23,44 @@ Team 97070. Prompt: create a system that helps humans sustain life in extreme of
 
 </div>
 
-Our prompt was to build something that helps humans sustain life in extreme off-Earth environments. A habitat only keeps people alive if its structure holds. Equipment hangs from brackets that weigh less on the Moon than on Mars, and every hatch has cabin air pushing out on one side and almost nothing pushing back on the other.
+A habitat keeps people alive only if its structure holds. Equipment hangs from brackets that weigh less on the Moon than on Mars and nothing at all in orbit, and every hatch has cabin air pushing out on one side and close to nothing pushing back on the other. Checking parts like these takes a finite element analysis, and setting one up by hand is slow and easy to get wrong: which faces are fixed, where the load acts, which way it points, what the local gravity is.
 
-Habitat Structure Copilot helps an engineer set up and judge a structural check for a part in a habitat. The intended flow is to import a STEP file of the part, type the destination (Moon, Mars, or any other world), and describe the test in plain English, for example "Fix the two mounting holes and hang a 500 kg equipment rack from the end pad." The AI asks for the parameters a finite element analysis needs, such as force magnitude and direction, where the force acts, which faces are fixed, the material, and any pressure. The app highlights the surfaces it chose on a 3D model, you check and fix them, and you confirm. The analysis then runs in Ansys through its API (TODO: confirm with the backend team before submission), and the app shows the stress on the model and a safety factor. A safety factor is yield strength divided by peak stress. We treat 1.4 to 2 as acceptable: below 1.4 is a fail, and above 2 the part is heavier than it needs to be.
+Habitat Structure Copilot does that setup with you. You import a STEP file of the part, type where it will be used, and describe the test in plain English, for example "Fix the bottom face and hang a 500 kg rack from the top." The app proposes which faces are fixed and loaded, the force and its direction, the material, and any pressure, and it colors those faces on the 3D model. You check every choice, change what is wrong, and confirm. Only then does the analysis run, and the app shows the stress on the model and a safety factor (yield strength divided by peak stress). The team's acceptable band is 1.4 to 2. Below 1 the part yields, between 1 and 1.4 it holds but with too little margin, and above 2 it is heavier than it needs to be. The 1.4 to 2 band is our own requirement, not a building code.
 
-The frontend also includes two built-in parts, an equipment bracket and a round hatch plate, with a solver that runs in the browser using textbook formulas. It works without a backend, so it is the fallback demo. In that mode the app shows the hand calculation line by line.
+The STEP import, the AI step, and the Ansys analysis run on a backend that is still being built and is not in this repository yet. TODO: update this paragraph when the backend is committed and confirm that the analysis runs in Ansys through its API.
 
-In the fallback demo, the app also reruns the formulas at every allowed thickness and for both materials, draws a bar chart of safety factor against thickness, and suggests the lightest design that meets your target. This is not part of the Ansys path, which would need many analysis runs.
+So the app works without the backend, it also has two built-in sample parts, an equipment bracket and a round hatch plate, checked in the browser with textbook formulas. Their results say "Browser formulas (sample part)" so nobody mistakes them for the Ansys analysis. For the sample parts the app also shows the hand calculation line by line, and it reruns the formulas at every allowed thickness and for both materials to suggest the lightest design that passes. That sweep is not part of the Ansys path, which would need too many analysis runs.
 
-The results also say what the verdict means for the crew. For the hatch, the app compares your cabin pressure with the range NASA's technical brief gives for indefinite crew exposure (above 5.0 and up to 15.0 psia), and states how far below that range the cabin would fall if the hatch failed. These sentences are fixed text filled in from the verdict and your inputs, not AI output.
+The results also say what the verdict means for the crew. For a hatch, the app compares your cabin pressure with the range NASA's technical brief gives for indefinite crew exposure (above 5.0 and up to 15.0 psia), and says how far the cabin would drop if the hatch failed. These sentences are fixed text filled in from the verdict and your inputs, not AI output.
 
-A few choices worth knowing about:
+How the app handles the off-Earth conditions:
 
-- Weight is mass times the destination's gravity (Moon 1.62 m/s², Mars 3.73 m/s²), so the same 500 kg rack loads the bracket about 2.3 times harder on Mars. The Moon, Mars, Mercury, Venus, Earth, Pluto, and free space (orbit, zero gravity) are built in. In free space nothing has weight, so you enter loads as forces. For any other place you type, you enter its gravity and outside pressure yourself.
-- The hatch sees cabin pressure minus the destination's outside pressure. There is no default cabin pressure. You can pick a NASA-published value (an ISS-type cabin at 14.7 psia, or the recommended 8.0 psia for a lunar habitat and 7.6 psia for a Mars habitat) or enter your own.
-- The AI step only picks surfaces and reads numbers you wrote. Gravity and outside pressure come from NASA data files, material values come from datasheets, and loads come from your input. The safety factor comes from the solver, never from the AI.
-- The fallback demo is a screening estimate, not a certification. It uses textbook closed-form formulas and leaves out stress concentrations at holes, bolts and contact, buckling, fatigue, and temperature, and its results list these assumptions. The Ansys analysis is meant to cover stress concentrations and contact. TODO: list what the Ansys model includes and leaves out.
+- You type the destination. The Moon, Mars, Mercury, Venus, Earth, Pluto, and free space (typing orbit, space, or zero g also finds it) come with their gravity and outside pressure built in. For any other name, such as Titan or Europa, the app asks you for the surface gravity and outside pressure and uses those numbers. Jupiter, Saturn, Uranus, and Neptune have no solid surface, so they are not built in.
+- Weight is mass times the destination's gravity, so the same 500 kg rack pushes on its bracket about 2.3 times harder on Mars (3.73 m/s²) than on the Moon (1.62 m/s²). In free space there is no weight at all. Gravity is set to 0 there, and the app asks for loads as forces in newtons, for example from thrust or docking.
+- A hatch sees cabin pressure minus the outside pressure. The app has no default cabin pressure. Buttons fill in a NASA-published value (an ISS-type cabin at 14.7 psia, a lunar habitat at 8.0 psia, or a Mars habitat at 7.6 psia), or you enter your own.
+- The AI only picks faces and reads numbers you wrote. Gravity and outside pressure come from the bundled NASA data or from you, material values come from datasheets, and the safety factor comes from the solver. The AI sets none of them.
+- Every face can be chosen two ways: by clicking it on the model, or from a list on the confirmation card. The lists mean the whole setup can be done with the keyboard.
+- The sample-part formulas are a screening estimate, not a certification. They leave out stress concentrations at holes, bolts, and contact, and also buckling, fatigue, and temperature. Each result lists these assumptions. The Ansys analysis is meant to cover stress concentrations and contact. TODO: list what the Ansys model includes and leaves out.
 
-**External tools and APIs.** The only external API is planned to be one LLM call (limit is 2): TODO: name the provider and model once the backend is wired up. Moon and Mars conditions are bundled in `frontend/src/data/environments.ts` from the NASA [Moon](https://nssdc.gsfc.nasa.gov/planetary/factsheet/moonfact.html) and [Mars](https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html) fact sheets. They are planetary reference values, not live data, so they use no API. Cabin pressures come from two NASA documents: the [NASA-STD-3001 Technical Brief on habitable atmosphere](https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-003-habitable-atmosphere.pdf) (14.7 psia ISS cabin, and the crew exposure range) and the [Exploration Atmospheres Working Group report, NASA/TP-2010-216134](https://www.nasa.gov/wp-content/uploads/2023/03/henninger-8.2-34-atm-tp216134-2010.pdf) (8.0 psia lunar and 7.6 psia Mars habitats). The 3D view uses the open-source libraries React and three.js.
+### External tools and APIs
 
-**Boilerplate.** `package.json`, `tsconfig.json`, `vite.config.ts`, and `index.html` are standard Vite + React + TypeScript scaffolding. Nothing in them addresses the prompt. The material values in `frontend/src/data/materials.ts` are typical handbook numbers for 6061-T6 aluminum and A36 steel, and the formulas come from standard strength-of-materials references (Euler-Bernoulli beam theory, and Roark's Formulas for Stress and Strain for circular plates). Material values are typical handbook numbers, checked against the [Proto Labs 6061-T6 data sheet](https://www.protolabs.com/media/h54d0gnp/2026-026-cnc-material-data-sheet_aluminum-6061-t651_t6.pdf), the [6061 aluminium alloy](https://en.wikipedia.org/wiki/6061_aluminium_alloy) page, and the [A36 steel](https://en.wikipedia.org/wiki/A36_steel) page (which cites AISC, MatWeb, and Bushwick Metals). Exact sources for each number are in `frontend/src/data/materials.ts`.
+The only external API planned is one LLM call (the limit is 2). TODO: name the provider and model once the backend is connected.
 
-**AI-generated and AI-assisted code.** All of the code in `frontend/` (the app, the part builder, the formulas, the recommender, and the scripts) was written with AI assistance from Claude, Anthropic's assistant, and so were the comments and READMEs. No image or video assets were made with AI. The demo mode's "AI" is plain regular expressions in `frontend/src/mocks/interpret.ts`, not a model. TODO: add the backend files and say which of them were AI-assisted.
+The destination data is bundled in `frontend/src/data/environments.ts`, so it uses no API. Gravity and pressure come from NASA's planetary fact sheets for the [Moon](https://nssdc.gsfc.nasa.gov/planetary/factsheet/moonfact.html), [Mars](https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html), [Mercury](https://nssdc.gsfc.nasa.gov/planetary/factsheet/mercuryfact.html), [Venus](https://nssdc.gsfc.nasa.gov/planetary/factsheet/venusfact.html), [Earth](https://nssdc.gsfc.nasa.gov/planetary/factsheet/earthfact.html), and [Pluto](https://nssdc.gsfc.nasa.gov/planetary/factsheet/plutofact.html). These are reference values for each world, not mission data. Free space is a modeling choice (gravity 0, vacuum outside), with NASA's page [What is microgravity?](https://www.nasa.gov/centers-and-facilities/glenn/what-is-microgravity/) as the reference.
+
+Cabin pressures come from the [NASA-STD-3001 Technical Brief on habitable atmosphere](https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-003-habitable-atmosphere.pdf) (the 14.7 psia ISS cabin and the crew exposure range) and the [Exploration Atmospheres Working Group report, NASA/TP-2010-216134](https://www.nasa.gov/wp-content/uploads/2023/03/henninger-8.2-34-atm-tp216134-2010.pdf) (8.0 psia lunar and 7.6 psia Mars habitats).
+
+Material values are typical handbook numbers for 6061-T6 aluminum and A36 steel, checked against the [Proto Labs 6061-T6 data sheet](https://www.protolabs.com/media/h54d0gnp/2026-026-cnc-material-data-sheet_aluminum-6061-t651_t6.pdf), the [6061 aluminium alloy](https://en.wikipedia.org/wiki/6061_aluminium_alloy) page, and the [A36 steel](https://en.wikipedia.org/wiki/A36_steel) page (which cites AISC, MatWeb, and Bushwick Metals). `frontend/src/data/materials.ts` says which source each number came from. The sample-part formulas are standard strength-of-materials results: Euler-Bernoulli beam theory for the bracket, and Roark's Formulas for Stress and Strain for the circular plate.
+
+The 3D view uses the open-source libraries React and three.js.
+
+### Boilerplate
+
+`package.json`, `tsconfig.json`, `vite.config.ts`, and `index.html` are standard Vite + React + TypeScript scaffolding. Nothing in them addresses the prompt.
+
+### AI-generated and AI-assisted code
+
+All of the code in `frontend/` (the app, the part builder, the formulas, the recommender, and the scripts) was written with AI assistance from Claude, Anthropic's assistant, and so were the comments and the READMEs. No image or video assets were made with AI. In demo mode, the "AI" step for the sample parts is plain regular expressions in `frontend/src/mocks/interpret.ts`, not a model. TODO: list the backend files and say which were AI-assisted when the backend is committed.
 
 ## Prerequisites
 
@@ -57,7 +73,7 @@ node --version
 
 ## Build from source
 
-The app runs entirely in your browser in demo mode, so you do not need the backend to try it.
+Without a backend the app runs in demo mode, where the sample parts work fully in the browser. Importing a STEP file needs the backend.
 
 ```sh
 # Clone the project
@@ -71,7 +87,9 @@ To check that it type-checks and builds, run `npm run build`.
 
 ## Extras
 
-How the fallback demo's checks work:
+Two sample STEP parts are in `samples/`: a 100 mm square cantilever beam, which has a known textbook answer to check results against, and an L bracket with four holes. `samples/README.md` has the expected numbers.
+
+How the sample parts are checked in the browser:
 
 | Part | Model | Peak stress |
 | --- | --- | --- |
@@ -79,6 +97,6 @@ How the fallback demo's checks work:
 | Hatch, clamped rim | Circular plate, uniform pressure | `3·q·a² / (4·t²)` at the edge |
 | Hatch, simply supported rim | Same plate, rim free to rotate | `3·(3+ν)·q·a² / (8·t²)` at the center |
 
-Safety factor is yield strength divided by peak von Mises stress. Below 1 is a fail, 1 up to the target (default 1.4) is below target, and the target or higher passes. The app adds a note when the factor is above 2, since the part is then heavier than needed. The 1.4 to 2 band is the team's own requirement, not a code.
+The safety factor is yield strength divided by peak von Mises stress. Below 1 is a fail, from 1 up to your target (1.4 by default) is below target, and the target or higher passes. A pass above 2 gets a note that the part could be lighter.
 
-The formulas are checked by an independent Python script: `frontend/scripts/check_formulas.py` recomputes the numbers on its own and confirms with finite differences that the plate's moment formulas agree with its deflection formulas. The steps to run it are in `frontend/README.md`, which also has the file-by-file guide and a reading order for newcomers.
+An independent Python script, `frontend/scripts/check_formulas.py`, recomputes these numbers on its own and uses finite differences to confirm that the plate's stress formulas agree with its deflection formulas. `frontend/README.md` has the steps to run it, a guide to every file, and a reading order for people new to the code.

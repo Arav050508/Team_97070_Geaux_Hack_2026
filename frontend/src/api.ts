@@ -67,7 +67,9 @@ export async function interpret(
   req: InterpretRequest,
   geometry: GeometryPayload,
 ): Promise<InterpretResponse> {
-  if (USE_MOCK) return mockInterpret(req, geometry);
+  // The sample parts always use the browser version, even with the backend on. The backend only
+  // knows imported files.
+  if (USE_MOCK || req.part_id !== "imported") return mockInterpret(req, geometry);
   return postJson<InterpretResponse>("/api/interpret", req);
 }
 
@@ -76,7 +78,8 @@ export async function solve(
   spec: SimulationSpec,
   geometry: GeometryPayload,
 ): Promise<SolveResult> {
-  if (USE_MOCK) return localSolve(spec, geometry);
+  // Same rule: sample parts are checked with the browser formulas, imported files by the backend.
+  if (USE_MOCK || geometry.part_id !== "imported") return localSolve(spec, geometry);
   // The real solver rebuilds the part from these two numbers, so it does not need the
   // triangles.
   return postJson<SolveResult>("/api/solve", {

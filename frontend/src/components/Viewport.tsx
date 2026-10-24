@@ -125,11 +125,19 @@ export function Viewport(props: ViewportProps) {
     ctxRef.current = ctx;
 
     // Keeps the canvas the same size as its container.
+    // The last size used, so a resize event with the same size does nothing.
+    let lastW = 0;
+    let lastH = 0;
     const resize = () => {
       const w = mount.clientWidth;
       const h = mount.clientHeight;
-      if (w === 0 || h === 0) return;
-      renderer.setSize(w, h);
+      if (w === 0 || h === 0 || (w === lastW && h === lastH)) return;
+      lastW = w;
+      lastH = h;
+      // `false` leaves the canvas's on-screen size to the CSS (100% of the box). If Three.js set
+      // it in pixels, a rounding difference at some display scalings can make the canvas 1px too
+      // big, add a scrollbar, shrink the box, and start the resize over and over (flicker).
+      renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
     };

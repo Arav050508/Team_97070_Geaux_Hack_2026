@@ -603,6 +603,7 @@ export default function App() {
         result={result}
         kind={resultKind}
         targetSafetyFactor={parseFloat(minSafetyFactor)}
+        browserSolver={geometry?.part_id !== "imported"}
         recommendation={recommendation}
         consequence={
           result.verdict && geometry

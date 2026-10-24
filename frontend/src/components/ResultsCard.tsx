@@ -7,7 +7,6 @@
 
 import { SAFETY_BAND } from "../data/safetyBand";
 import { cssGradient } from "../colormap";
-import { USE_MOCK } from "../api";
 import type { DesignOption, Recommendation } from "../solver/recommend";
 import type { SolveResult, Verdict } from "../types";
 
@@ -19,6 +18,9 @@ interface Props {
   kind: ResultKind;
   // The user's minimum safety factor, shown next to the verdict.
   targetSafetyFactor: number;
+  // True when the browser formulas produced this result (the sample parts), as opposed to the
+  // backend. The badge in the header says so, so nobody mistakes it for the Ansys analysis.
+  browserSolver: boolean;
   // What the recommender found. null if it could not run.
   recommendation: Recommendation | null;
   // Plain-language lines about what the verdict means for the crew (src/solver/consequence.ts).
@@ -53,6 +55,7 @@ export function ResultsCard({
   result,
   kind,
   targetSafetyFactor,
+  browserSolver,
   recommendation,
   consequence,
   onKind,
@@ -82,7 +85,7 @@ export function ResultsCard({
       <header className="card-head">
         <h3>Results</h3>
         {/* Tells the user the numbers came from the in-browser solver, not a real server. */}
-        {USE_MOCK && <span className="badge-mock">Browser demo solver</span>}
+        {browserSolver && <span className="badge-mock">Browser formulas (sample part)</span>}
       </header>
 
       {/* The verdict box. The three null checks are there because a failed run has no
@@ -223,7 +226,9 @@ export function ResultsCard({
         </div>
       )}
 
-      {/* <details> is a built-in HTML element that opens and closes on click. */}
+      {/* <details> is a built-in HTML element that opens and closes on click. Only the browser
+          formulas produce a hand calculation. An Ansys result has none, so the box is left out. */}
+      {result.hand_check.length > 0 && (
       <details className="handcalc">
         <summary>Show the hand calculation ({result.method})</summary>
         <ol>
@@ -233,6 +238,7 @@ export function ResultsCard({
         </ol>
         <p className="fineprint">Check these numbers with a calculator. They are the whole answer.</p>
       </details>
+      )}
 
       <div className="group">
         <div className="group-title">Assumptions behind these results</div>
