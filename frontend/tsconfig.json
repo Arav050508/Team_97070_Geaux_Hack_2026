@@ -1,0 +1,29 @@
+{
+  // Settings for TypeScript. It only checks the code for mistakes here (noEmit); Vite does
+  // the actual building. This file allows comments even though plain JSON does not.
+  "compilerOptions": {
+    // The newest JavaScript features the output may use. Modern browsers support ES2022.
+    "target": "ES2022",
+    // Which built-in types exist: the language itself and browser objects like document.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    // Find imports the same way Vite does.
+    "moduleResolution": "bundler",
+    // Understand JSX (the HTML-like syntax in .tsx files) without importing React by hand.
+    "jsx": "react-jsx",
+    // Turns on the whole family of strict checks, such as refusing values that might be null.
+    "strict": true,
+    // Report variables and function parameters that are declared but never used.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    // Do not check the type files inside node_modules. It saves time and avoids errors we
+    // cannot fix.
+    "skipLibCheck": true,
+    // Each file must be understandable by itself, which Vite requires.
+    "isolatedModules": true,
+    // Check only, do not write any output files.
+    "noEmit": true
+  },
+  // Only the src folder is checked.
+  "include": ["src"]
+}

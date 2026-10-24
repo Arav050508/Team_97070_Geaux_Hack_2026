@@ -1,0 +1,19 @@
+<!doctype html>
+<!--
+  The single HTML page for the whole app. There is almost nothing in it on purpose:
+  React builds the real interface in the browser.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Makes the page scale correctly on phones instead of showing a shrunken desktop view. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Habitat Structure Copilot</title>
+  </head>
+  <body>
+    <!-- React draws the app inside this empty div (see src/main.tsx). -->
+    <div id="root"></div>
+    <!-- Loads the app's code. type="module" lets the file use import statements. -->
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
