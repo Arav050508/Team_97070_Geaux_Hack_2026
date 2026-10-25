@@ -75,7 +75,7 @@ a mass load and in the results.
   indefinite crew exposure (above 5.0 and up to 15.0 psia). These lines are fixed text filled in
   from the verdict and the inputs, not AI output.
 - The frontend attaches the destination values, the pressure loads, and the target from that data
-  and the user's inputs. The AI only picks faces and reads numbers the user wrote.
+  and the user's inputs. The AI proposes faces, a load direction and a starting material (flagged for the user to check) and reads numbers the user wrote.
 
 ## Sources
 

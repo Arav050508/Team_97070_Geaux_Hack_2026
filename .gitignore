@@ -3,3 +3,4 @@ dist
 .env.local
 .DS_Store
 _integration*.zip
+compare-solidworks.png
