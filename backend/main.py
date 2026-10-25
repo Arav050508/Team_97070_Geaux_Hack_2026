@@ -68,6 +68,8 @@ MATERIALS = ["aluminum_6061_t6", "steel_a36"]
 # AI Configurations
 SYSTEM_PROMPT = """You provide a structural analysis. Choose faces ONLY from the list given.
 
+If the load acts on several faces at once (for example both half-cylinders of a bore or a hole), put one in load_face_id and the others in extra_load_face_ids. The force is shared evenly across all of them. Leave extra_load_face_ids empty otherwise.
+
 Do not invent or change gravity, pressures, material properties, or safety factors. If the user provides a mass, return mass_kg and leave force_N null.
 
 The environment uses a coordinate system where Z is the vertical axis and X/Y are the horizontal axes
@@ -78,6 +80,7 @@ RESPONSE_SCHEMA = {
     "properties": {
         "fixed_face_ids": {"type": "array", "items": {"type": "string"}},
         "load_face_id": {"type": "string"},
+        "extra_load_face_ids": {"type": "array", "items": {"type": "string"}},
         "direction": {"type": "array", "items": {"type": "number"}},
         "mass_kg": {"type": "number", "nullable": True},
         "force_N": {"type": "number", "nullable": True},
@@ -171,6 +174,13 @@ def _to_interpret_response(raw: dict, body: dict, model: dict) -> dict:
     direction = [c / n for c in d]
 
     load = {"type": "force", "geometry_id": load_face, "direction": direction}
+    # More faces that share the same force. Keep only real, unused ones.
+    extra = []
+    for i in raw.get("extra_load_face_ids") or []:
+        if i in valid_ids and i != load_face and i not in fixed and i not in extra:
+            extra.append(i)
+    if extra:
+        load["extra_geometry_ids"] = extra
     if raw.get("mass_kg") is not None:
         load["mass_kg"] = raw["mass_kg"]
         load["magnitude_N"] = raw["mass_kg"] * gravity

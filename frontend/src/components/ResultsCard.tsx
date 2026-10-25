@@ -62,6 +62,12 @@ export function ResultsCard({
             {result.yield_MPa.toFixed(0)} MPa yield ÷ {result.max_von_mises_MPa.toFixed(0)} MPa peak stress
             · your target {targetSafetyFactor}
           </div>
+          {result.away_from_supports_MPa != null && result.away_from_supports_MPa > 0 && (
+            <div className="verdict-sub">
+              Away from the supports: {result.away_from_supports_MPa.toFixed(0)} MPa peak, safety factor{" "}
+              {(result.yield_MPa / result.away_from_supports_MPa).toFixed(2)}
+            </div>
+          )}
           <div className="verdict-sub">Solved with {result.method}</div>
           {/* Above the top of the acceptable band the part is stronger than needed, which
               means extra mass. Say so instead of calling it a plain pass. */}

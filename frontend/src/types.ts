@@ -81,6 +81,11 @@ export interface ForceLoad {
    * same rack weighs less on the Moon than on Mars.
    */
   mass_kg?: number;
+  /**
+   * More faces that carry the same force, for example the second half of a bore. The force
+   * is shared evenly by geometry_id and every face listed here.
+   */
+  extra_geometry_ids?: string[];
 }
 
 /**
@@ -226,6 +231,9 @@ export interface SolveResult {
   // Von Mises stress is one number that summarizes a 3D stress state, so it can be
   // compared against the material's yield strength.
   max_von_mises_MPa: number;
+  // The peak stress away from the fixed faces, set when it is clearly lower than the overall
+  // peak (a rigid support overstates stress at its own edge).
+  away_from_supports_MPa?: number | null;
   max_displacement_mm: number;
   // yield strength divided by the peak stress. null when status is "error".
   safety_factor: number | null;

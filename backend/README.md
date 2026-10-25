@@ -7,7 +7,7 @@ solves it in Ansys.
 
 Rename `.env.example` to `.env` and populate it with your actual Google Gemini API key and preferred model.
 
-If a model is not set, it defaults to `gemini-3.8-flash`. When that model fails, the backend tries `gemini-3.5-flash-lite` (change it with `GEMINI_FALLBACK_MODEL`), and if both fail it uses the fixed placeholder rules.
+If a model is not set, it defaults to `gemini-3.8-flash`. When that model fails or takes longer than 12 seconds (`GEMINI_TIMEOUT_S`), the backend tries `gemini-3.5-flash-lite` (change it with `GEMINI_FALLBACK_MODEL`), and if both fail it uses the fixed placeholder rules.
 
 ## Run
 

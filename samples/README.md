@@ -44,7 +44,7 @@ confirmation card before you run.
 | `Cantilever beam.STEP` | Fix Flat face 1 and push down on Flat face 3 with 20 N | Known answer: 96 MPa and about 1.9 mm (see above). |
 | `L brackets.STEP` | Fix Flat face 5 against the wall and put a 30 kg load on Flat face 6 | A shelf bracket. The weight depends on the destination, so try Moon and Mars and compare. |
 | `Kettle Bell.STEP` | Fix Cylindrical face 16, the grip, and pull on Flat face 13, the base, along -Y with a 16 kg load | This part stands along Y, so the viewer shows it lying down and "down" is -Y. Use the custom direction on the card if the proposal picks -Z. |
-| `hex flange nut_am.STEP` | Fix Flat face 15 and push down on Flat face 14 with 25000 N | A clamp load on a nut. Face 15 is the flange bottom. |
+| `hex flange nut_am.STEP` | Fix Flat face 15 and pull down on Cylindrical face 6 and Cylindrical face 7 with 25000 N | A bolt pulling on a nut. Face 15 is the flange bottom, and faces 6 and 7 are the two halves of the bore. The force is shared by both halves. The bore is a plain cylinder, so this approximates a bolt and does not model thread contact. |
 
 Only the beam has a hand-calculated answer. For the other three, treat the first run as a
 check that the setup looks right, not as a verified number.

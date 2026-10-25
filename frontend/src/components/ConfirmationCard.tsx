@@ -9,6 +9,7 @@
 // The "Confirm and check design" button stays disabled until the `problems` list below is
 // empty, so a bad setup can never reach the solver.
 
+import { loadFaceIds } from "../loadFaces";
 import { MESH_LEVELS } from "../data/meshLevels";
 import { useState } from "react";
 import { SAFETY_BAND } from "../data/safetyBand";
@@ -141,7 +142,7 @@ export function ConfirmationCard(p: Props) {
   const faceList = (mode: "support" | "load" | "pressure", heading: string) => {
     const used = new Set([
       ...p.spec.constraints.map((c) => c.geometry_id),
-      ...p.spec.loads.map((l) => l.geometry_id),
+      ...p.spec.loads.flatMap((l) => loadFaceIds(l)),
       ...p.pressureFaces,
     ]);
     const free = p.geometry.faces.filter((f) => f.candidate && !used.has(f.id));
@@ -209,10 +210,17 @@ export function ConfirmationCard(p: Props) {
         {load ? (
           <div {...rowProps(load.geometry_id)}>
             <div className="row-main">
-              <strong>{label(load.geometry_id)}</strong>
+              <strong>{loadFaceIds(load).map(label).join(" + ")}</strong>
               <span className="tag">{describeDirection(load.direction)}</span>
               {p.userPicked.has(load.geometry_id) && <span className="tag">Picked by you</span>}
+              {loadFaceIds(load).length > 1 && <span className="tag">force shared by {loadFaceIds(load).length} faces</span>}
             </div>
+            {loadFaceIds(load).length > 1 &&
+              loadFaceIds(load).map((id) => (
+                <button key={id} className="link" onClick={() => p.onPickFromList("load", id)}>
+                  Remove {label(id)}
+                </button>
+              ))}
             <label className="inline">
               <input
                 type="number"
@@ -286,9 +294,9 @@ export function ConfirmationCard(p: Props) {
           className={`chip${p.pickMode === "load" ? " chip-on" : ""}`}
           onClick={() => p.onSetPickMode(p.pickMode === "load" ? null : "load")}
         >
-          {p.pickMode === "load" ? "Click the loaded face… (done)" : "Pick load face on model"}
+          {p.pickMode === "load" ? "Click the loaded faces… (done)" : "Pick load faces on model"}
         </button>
-        {faceList("load", "Or choose the loaded face from a list")}
+        {faceList("load", "Or add a loaded face from a list")}
       </div>
 
       {/* Pressure (optional). */}

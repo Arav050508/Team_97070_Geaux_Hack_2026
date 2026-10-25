@@ -21,6 +21,7 @@ import threading
 import time
 from pathlib import Path
 
+from mesh_repair import repair
 from reset_ansys import reset_ansys
 
 import numpy as np
@@ -167,9 +168,17 @@ def build_mesh(step_path: Path, app_faces: list[dict], needed_faces: set[str], t
             tags, _, _ = gmsh.model.mesh.getNodes(2, matches[face_id], includeBoundary=True)
             face_nodes[face_id] = np.unique(np.array(tags, dtype=np.int64))
 
+        # Straighten the middle nodes of any element that curved edges fold inside out, because
+        # Ansys refuses those (see mesh_repair.py).
+        node_tags = np.array(node_tags, dtype=np.int64)
+        coords = np.array(coords).reshape(-1, 3)
+        coords, n_fixed = repair(node_tags, coords, tets)
+        if n_fixed:
+            log(f"straightened the curved edges of {n_fixed} badly shaped elements")
+
         return {
-            "node_tags": np.array(node_tags, dtype=np.int64),
-            "coords": np.array(coords).reshape(-1, 3),
+            "node_tags": node_tags,
+            "coords": coords,
             "elements": tets,
             "face_nodes": face_nodes,
             "element_size_m": h,
@@ -187,6 +196,11 @@ def write_input(mesh: dict, spec: dict, material: dict, path: Path) -> None:
         "/NOPR",  # do not echo each command, which makes reading the file much faster
         "/PREP7",
         "ET,1,SOLID187",  # 10-node tetrahedron
+        # Ansys checks each tetrahedron's shape when it is created and refuses a bad one, with
+        # "zero or negative determinant of the Jacobian". Curved parts trip this on elements that
+        # are fine for a linear stress analysis. The message itself suggests this setting: check
+        # the shape as a straight-edged tetrahedron.
+        "SHPP,LSTET,ON",
         f"MP,EX,1,{material['E']:.6e}",
         f"MP,PRXY,1,{material['nu']}",
         "TYPE,1",
@@ -208,6 +222,10 @@ def write_input(mesh: dict, spec: dict, material: dict, path: Path) -> None:
     lines.append("FCUM,ADD")
     for load in spec.get("loads", []):
         nodes = mesh["face_nodes"][load["geometry_id"]]
+        if load["type"] == "force" and load.get("extra_geometry_ids"):
+            # A force on several faces (for example both halves of a bore) is shared by all of
+            # their nodes together. A node on two of the faces is counted once.
+            nodes = np.unique(np.concatenate([nodes] + [mesh["face_nodes"][i] for i in load["extra_geometry_ids"]]))
         if load["type"] == "force":
             # The total force is shared equally by the nodes on the face. That gives the right
             # total force and moment, which is what a beam or bracket check depends on.
@@ -301,6 +319,16 @@ def _get_mapdl():
     )
 
 
+def _first_error(output: str) -> str:
+    """The text of the first *** ERROR *** block in Ansys output, on one line."""
+    lines = output.splitlines()
+    for i, line in enumerate(lines):
+        if "*** ERROR ***" in line:
+            block = " ".join(l.strip() for l in lines[i + 2 : i + 6] if l.strip())
+            return f"Ansys says: {block[:300]}"
+    return "Check the supports and loads."
+
+
 def _run_in_ansys(input_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Solves the model in Ansys. Returns node numbers, von Mises stress (Pa), and displacement (m)."""
     global _mapdl
@@ -311,8 +339,16 @@ def _run_in_ansys(input_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]
         log(f"Ansys is running, loading the model ({n_lines} lines)...")
         t0 = time.time()
         output = mapdl.input(str(input_path))
+        if "cannot store element" in str(output) or "element shape" in str(output):
+            # Some elements are still refused. Turn the shape check off and load the model again.
+            # A truly broken element would still make the solve fail, and that is reported below.
+            log("Ansys refused some badly shaped elements, loading again with the shape check off...")
+            text = Path(input_path).read_text().replace("SHPP,LSTET,ON", "SHPP,OFF", 1)
+            Path(input_path).write_text(text)
+            mapdl.clear()
+            output = mapdl.input(str(input_path))
         if "*** ERROR ***" in str(output):
-            raise AnalysisError("Ansys reported an error while loading the model. Check the supports and loads.")
+            raise AnalysisError("Ansys reported an error while loading the model. " + _first_error(str(output)))
         log(f"model loaded in {time.time() - t0:.1f} s, solving...")
 
         # Print a line every 10 s while Ansys works, so a slow solve can be told from a stuck one.
@@ -333,7 +369,7 @@ def _run_in_ansys(input_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]
         finally:
             done.set()
         if "*** ERROR ***" in str(solve_output):
-            raise AnalysisError("Ansys reported an error while solving. Check the supports and loads.")
+            raise AnalysisError("Ansys reported an error while solving. " + _first_error(str(solve_output)))
         log(f"solved in {time.time() - t1:.1f} s, reading results...")
         t2 = time.time()
         mapdl.post1()
@@ -397,6 +433,7 @@ def analyze(spec: dict, model: dict, solver=None) -> dict:
         raise AnalysisError("Add a force or a pressure.")
 
     needed = {c["geometry_id"] for c in spec["constraints"]} | {l["geometry_id"] for l in spec["loads"]}
+    needed |= {i for l in spec["loads"] for i in l.get("extra_geometry_ids", [])}
     # Every display face is needed too, so its colors can come from its own nodes.
     needed |= set(model["positions"].keys())
     log("meshing the part with gmsh...")
@@ -447,10 +484,12 @@ def analyze(spec: dict, model: dict, solver=None) -> dict:
     node_xyz = np.array([coord_by_node[n] for n in nodes.tolist()])
     near = _distances_to(node_xyz, support_xyz) < 2 * mesh["element_size_m"]
     warnings = []
+    away_MPa = None
     if (~near).any():
         away = float(stress[~near].max())
         # Shown when the two differ by more than 5%.
         if away < 0.95 * peak_pa:
+            away_MPa = away / 1e6
             warnings.append(
                 f"The peak of {peak_pa / 1e6:.0f} MPa is at a fixed face, where a perfectly rigid support "
                 f"overstates stress. Away from the supports the peak is {away / 1e6:.0f} MPa."
@@ -460,6 +499,8 @@ def analyze(spec: dict, model: dict, solver=None) -> dict:
         "status": "ok",
         "warnings": warnings,
         "max_von_mises_MPa": peak_pa / 1e6,
+        # The peak away from the fixed faces, or None when it is about the same as the overall peak.
+        "away_from_supports_MPa": away_MPa,
         "max_displacement_mm": max_disp_m * 1000,
         "safety_factor": safety,
         "yield_MPa": material["yield"] / 1e6,

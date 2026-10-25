@@ -44,7 +44,9 @@ How the app handles the off-Earth conditions:
 
 ### External tools and APIs
 
-The only external API is one LLM call, to Google's Gemini API through the `google-genai` package, to propose the faces and read the numbers in your request. The main model is Gemini 3.8 Flash (`GEMINI_MODEL` in `backend/.env`). When it is busy or unavailable, the backend retries with the lighter Gemini 3.5 Flash Lite (`GEMINI_FALLBACK_MODEL`). TODO: confirm both model names with the team before the deadline.
+The only external API is one LLM call, to Google's Gemini API through the `google-genai` package. It runs on the backend, so the API key stays in `backend/.env`, which is git-ignored and never reaches the browser. Each request sends Gemini your sentence and a short list of the part's faces (id, label, shape, area, center, and direction), with the answer constrained to a fixed JSON format at temperature 0. Gemini returns which faces are fixed and loaded, the force direction, a mass or force you wrote, the material, and any pressure faces. It does not set gravity, outside pressure, material values, or the safety factor.
+
+The main model is `gemini-3.8-flash`. If it fails or takes longer than 12 seconds, the backend tries `gemini-3.5-flash-lite`, and if that also fails it uses the fixed rules described above. Both names and the timeout can be changed in `backend/.env` (`GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, `GEMINI_TIMEOUT_S`), and `backend/.env.example` shows the format. The Gemini API is the one external API this project uses (the limit is 2).
 
 The analysis uses Ansys Student 2025 R2, installed on the computer that runs the backend and driven through PyMAPDL. It runs locally, not as a web API. The backend also uses the open-source libraries FastAPI, gmsh, and Open CASCADE (through `cadquery-ocp`).
 
@@ -62,7 +64,7 @@ The 3D view uses the open-source libraries React and three.js.
 
 ### AI-generated and AI-assisted code
 
-All of the code in `frontend/` (the app and its components) was written with AI assistance from Claude, Anthropic's assistant, and so were the comments and the READMEs. No image or video assets were made with AI. Until the LLM call is connected, the proposal step in the backend is plain rules, not a model. The backend (`backend/main.py`, `backend/step_import.py`, and `backend/ansys_solver.py`) was also written with AI assistance from Claude.
+All of the code in `frontend/` (the app and its components) was written with AI assistance from Claude, Anthropic's assistant, and so were the comments and the READMEs. No image or video assets were made with AI. The backend (`backend/main.py`, `backend/step_import.py`, `backend/ansys_solver.py`, `backend/mesh_repair.py`, and `backend/reset_ansys.py`) was also written with AI assistance from Claude. The Gemini call in `backend/main.py` (`interpret_with_gemini`, its prompt, and its response format) was added by a teammate. The fallback model, the timeout, the smaller prompt, and the removal of invented default numbers were added with Claude's help. At run time the app also uses Gemini, as described under External tools and APIs.
 
 ## Prerequisites
 

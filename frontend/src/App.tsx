@@ -17,6 +17,7 @@
 // React note: useState gives a value plus a function to change it. Calling that function
 // redraws the component with the new value. Never change a state value directly.
 
+import { loadFaceIds, withLoadFaces } from "./loadFaces";
 import { exampleFor } from "./data/sampleExamples";
 import { DEFAULT_MESH_LEVEL, MESH_LEVELS } from "./data/meshLevels";
 import { SAFETY_BAND } from "./data/safetyBand";
@@ -341,7 +342,7 @@ export default function App() {
   const applyPick = (pickMode: "support" | "load" | "pressure", id: string) => {
     if (!spec || stage !== "confirming") return;
     const isSupport = spec.constraints.some((c) => c.geometry_id === id);
-    const isLoad = spec.loads.some((l) => l.geometry_id === id);
+    const isLoad = spec.loads.some((l) => loadFaceIds(l).includes(id));
 
     if (pickMode === "pressure") {
       if (isSupport || isLoad) {
@@ -362,16 +363,17 @@ export default function App() {
       });
     } else {
       if (isSupport) return say("system", "That face is a support, so it cannot also carry the load.");
-      // Move the existing load to the new face, or create a load with no force yet. The user has to enter the number.
+      // Clicking a loaded face takes it off the load. Clicking any other face adds it, and the
+      // force is shared by all the loaded faces. A new load starts with no force: the user has
+      // to enter the number.
       const existing = spec.loads[0];
-      setSpec({
-        ...spec,
-        loads: [
-          existing
-            ? { ...existing, geometry_id: id }
-            : { type: "force", geometry_id: id, magnitude_N: 0, direction: [0, 0, -1] },
-        ],
-      });
+      if (existing && existing.type === "force") {
+        const ids = loadFaceIds(existing);
+        const next = withLoadFaces(existing, ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
+        setSpec({ ...spec, loads: next ? [next] : [] });
+      } else {
+        setSpec({ ...spec, loads: [{ type: "force", geometry_id: id, magnitude_N: 0, direction: [0, 0, -1] }] });
+      }
     }
     setUserPicked((s) => new Set(s).add(id));
   };
@@ -390,7 +392,7 @@ export default function App() {
     if (spec && showSetup) {
       pressureFaces.forEach((id) => (r[id] = "pressure"));
       spec.constraints.forEach((c) => (r[c.geometry_id] = "support"));
-      spec.loads.forEach((l) => (r[l.geometry_id] = "load"));
+      spec.loads.forEach((l) => loadFaceIds(l).forEach((id) => (r[id] = "load")));
     }
     return r;
   }, [spec, showSetup, pressureFaces]);
@@ -398,10 +400,12 @@ export default function App() {
   // One arrow per load, pointing at the middle of the loaded face.
   const arrows = useMemo<ArrowSpec[]>(() => {
     if (!spec || !geometry || !showSetup) return [];
-    return spec.loads.flatMap((l) => {
-      const face = geometry.faces.find((f) => f.id === l.geometry_id);
-      return face ? [{ tip: face.centroid, dir: l.direction }] : [];
-    });
+    return spec.loads.flatMap((l) =>
+      loadFaceIds(l).flatMap((id) => {
+        const face = geometry.faces.find((f) => f.id === id);
+        return face ? [{ tip: face.centroid, dir: l.direction }] : [];
+      }),
+    );
   }, [spec, geometry, showSetup]);
 
   // The numbers that color the model on the results screen. The scale runs from zero to the
