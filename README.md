@@ -64,7 +64,7 @@ The 3D view uses the open-source libraries React and three.js.
 
 ### AI-generated and AI-assisted code
 
-All of the code in `frontend/` (the app and its components) was written with AI assistance from Claude, Anthropic's assistant, and so were the comments and the READMEs. No image or video assets were made with AI. The backend (`backend/main.py`, `backend/step_import.py`, `backend/ansys_solver.py`, `backend/mesh_repair.py`, and `backend/reset_ansys.py`) was also written with AI assistance from Claude. The Gemini call in `backend/main.py` (`interpret_with_gemini`, its prompt, and its response format) was added by a teammate. The fallback model, the timeout, the smaller prompt, and the removal of invented default numbers were added with Claude's help. At run time the app also uses Gemini, as described under External tools and APIs.
+All of the code in `frontend/` (the app and its components) was written with AI assistance from Claude, Anthropic's assistant, and so were the comments and the READMEs. No image or video assets were made with AI. The backend (`backend/main.py`, `backend/step_import.py`, `backend/ansys_solver.py`, `backend/mesh_repair.py`, and `backend/reset_ansys.py`) was also written with AI assistance from Claude. The Gemini call in `backend/main.py` (`interpret_with_gemini`, its prompt, and its response format) was written by a teammate without AI assistance. The fallback model, the timeout, the smaller prompt, and the removal of invented default numbers were added with Claude's help. At run time the app also uses Gemini, as described under External tools and APIs.
 
 ## Prerequisites
 
