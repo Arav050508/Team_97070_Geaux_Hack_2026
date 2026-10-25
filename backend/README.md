@@ -7,7 +7,7 @@ solves it in Ansys.
 
 Rename `.env.example` to `.env` and populate it with your actual Google Gemini API key and preferred model.
 
-If a model is not set, it will default to `gemini-3.8-flash`.
+If a model is not set, it defaults to `gemini-3.8-flash`. When that model fails, the backend tries `gemini-3.5-flash-lite` (change it with `GEMINI_FALLBACK_MODEL`), and if both fail it uses the fixed placeholder rules.
 
 ## Run
 
@@ -61,6 +61,10 @@ from beam theory. Pressure has not been run in Ansys itself yet.
 - Axes: the analysis uses the CAD file's own axes. Most CAD programs use Z as up, so the viewer turns imported parts to show +Z up, and the direction menu calls -Z "Down".
 - Face ids (`face_001`, ...) follow the order Open CASCADE walks the faces. The solver matches
   each one to its gmsh surface by center and area, not by order.
+- Ansys Student allows one session at a time. If an old Ansys process holds the license, Ansys
+  starts without a solver and dies at SOLVE. The backend notices this, ends the old processes
+  (`reset_ansys.py`), and starts Ansys again by itself. You can also run `python reset_ansys.py`
+  by hand. Do not keep Ansys Workbench or Mechanical open while the backend runs.
 - If a solve hangs at "starting Ansys MAPDL", an old Ansys process is probably still holding the
   license. End every process with ansys or mapdl in its name in Task Manager and try again. The
   backend terminal prints a line for each step of a solve.

@@ -44,7 +44,7 @@ How the app handles the off-Earth conditions:
 
 ### External tools and APIs
 
-The only external API is one LLM call, to Google's Gemini API through the `google-genai` package, to propose the faces and read the numbers in your request. The model is set by `GEMINI_MODEL` in `backend/.env`. TODO: write the exact model name here once the team confirms it.
+The only external API is one LLM call, to Google's Gemini API through the `google-genai` package, to propose the faces and read the numbers in your request. The main model is Gemini 3.8 Flash (`GEMINI_MODEL` in `backend/.env`). When it is busy or unavailable, the backend retries with the lighter Gemini 3.5 Flash Lite (`GEMINI_FALLBACK_MODEL`). TODO: confirm both model names with the team before the deadline.
 
 The analysis uses Ansys Student 2025 R2, installed on the computer that runs the backend and driven through PyMAPDL. It runs locally, not as a web API. The backend also uses the open-source libraries FastAPI, gmsh, and Open CASCADE (through `cadquery-ocp`).
 

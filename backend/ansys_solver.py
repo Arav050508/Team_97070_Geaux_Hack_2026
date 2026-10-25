@@ -17,8 +17,11 @@ from __future__ import annotations
 
 import math
 import tempfile
+import threading
 import time
 from pathlib import Path
+
+from reset_ansys import reset_ansys
 
 import numpy as np
 
@@ -36,6 +39,8 @@ MAX_NODES = 120_000
 # About how many elements to aim for. Enough for a smooth stress picture on a simple part, and
 # small enough to solve in seconds.
 TARGET_ELEMENTS = 20_000
+MIN_TARGET_ELEMENTS = 2_000
+MAX_TARGET_ELEMENTS = 70_000
 
 
 def log(message: str) -> None:
@@ -104,7 +109,7 @@ def _match_faces(app_faces: list[dict]) -> dict[str, int]:
     return matches
 
 
-def build_mesh(step_path: Path, app_faces: list[dict], needed_faces: set[str]) -> dict:
+def build_mesh(step_path: Path, app_faces: list[dict], needed_faces: set[str], target_elements: int = TARGET_ELEMENTS) -> dict:
     """
     Meshes the STEP file with 10-node tetrahedra. Returns the node coordinates (meters), the
     elements in Ansys node order, and the nodes that lie on each face in `needed_faces`.
@@ -131,14 +136,18 @@ def build_mesh(step_path: Path, app_faces: list[dict], needed_faces: set[str]) -
         if missing:
             raise AnalysisError(f"Could not find these faces in the mesh: {', '.join(sorted(missing))}.")
 
-        # Element size so the part gets roughly TARGET_ELEMENTS tetrahedra. A cube of side h
+        # Element size so the part gets roughly target_elements tetrahedra. A cube of side h
         # holds about 6 tetrahedra, so h = (6 x volume / count)^(1/3).
-        h = (6 * volume / TARGET_ELEMENTS) ** (1 / 3)
+        h = (6 * volume / target_elements) ** (1 / 3)
         for _attempt in range(4):
             gmsh.model.mesh.clear()
             gmsh.option.setNumber("Mesh.MeshSizeMin", h * 0.5)
             gmsh.option.setNumber("Mesh.MeshSizeMax", h)
             gmsh.option.setNumber("Mesh.ElementOrder", 2)
+            # On curved parts, the middle-of-edge nodes can pull a tetrahedron inside out, and
+            # Ansys then refuses it ("zero or negative determinant of the Jacobian"). This
+            # option makes gmsh repair those elements. It costs well under a second.
+            gmsh.option.setNumber("Mesh.HighOrderOptimize", 1)
             gmsh.model.mesh.generate(3)
             node_tags, coords, _ = gmsh.model.mesh.getNodes()
             if len(node_tags) <= MAX_NODES:
@@ -218,7 +227,9 @@ def write_input(mesh: dict, spec: dict, material: dict, path: Path) -> None:
             lines.append(f"SF,ALL,PRES,{net:.9e}")
             lines.append("NSEL,ALL")
 
-    lines += ["FINISH", "/SOLU", "ANTYPE,STATIC", "SOLVE", "FINISH", "/GOPR"]
+    # The model ends here. _run_in_ansys sends the solve commands separately, so the log can
+    # show how long loading the model and solving each take.
+    lines += ["FINISH", "/GOPR"]
     path.write_text("\n".join(lines) + "\n")
 
 
@@ -229,24 +240,65 @@ def write_input(mesh: dict, spec: dict, material: dict, path: Path) -> None:
 _mapdl = None
 
 
+def _has_solver(mapdl) -> bool:
+    """
+    False when Ansys started without a solver. That happens when another Ansys process holds the
+    one-session Student license: Ansys then starts the "PrepPost" product, which loads a model
+    but dies at SOLVE. Ansys writes the product name and the license complaint at the top of its
+    own output file, so look there.
+    """
+    text = ""
+    try:
+        text += str(mapdl.info)
+    except Exception:
+        pass
+    try:
+        for f in Path(str(mapdl.directory)).glob("file*.out"):
+            text += f.read_text(errors="ignore")[:30000]
+    except Exception:
+        pass
+    return "PrepPost" not in text and "demo users" not in text
+
+
 def _get_mapdl():
     global _mapdl
-    if _mapdl is None:
-        try:
-            from ansys.mapdl.core import launch_mapdl
-        except ImportError as e:
-            raise AnalysisError("PyMAPDL is not installed. Run: pip install ansys-mapdl-core") from e
+    if _mapdl is not None:
+        return _mapdl
+    try:
+        from ansys.mapdl.core import launch_mapdl
+    except ImportError as e:
+        raise AnalysisError("PyMAPDL is not installed. Run: pip install ansys-mapdl-core") from e
+
+    # Two tries. If the first start has no solver license, end the old Ansys processes and
+    # start again. This is the same fix as ending them by hand in Task Manager.
+    for attempt in (1, 2):
         try:
             # start_timeout makes a stuck start fail with a message after 2 minutes instead of
-            # waiting forever. The usual cause is an old Ansys process that still holds the
-            # license, for example after the server reloaded.
+            # waiting forever.
             log("starting Ansys MAPDL (the first time can take a minute)...")
-            _mapdl = launch_mapdl(loglevel="ERROR", cleanup_on_exit=True, start_timeout=120)
-        except Exception as e:  # Ansys missing, no license, wrong path
+            mapdl = launch_mapdl(loglevel="ERROR", cleanup_on_exit=True, start_timeout=120)
+        except Exception as e:  # Ansys missing, no license, wrong path, or a stuck old process
+            if attempt == 1:
+                log(f"Ansys did not start ({str(e).splitlines()[0]}). Ending old Ansys processes and retrying...")
+                log("ended: " + (", ".join(reset_ansys()) or "nothing"))
+                continue
             raise AnalysisError(
-                f"Could not start Ansys MAPDL: {e}. If an older Ansys run is still open, end ANSYS252.exe in Task Manager and try again."
+                f"Could not start Ansys MAPDL: {e}. End every ansys and mapdl process in Task Manager and try again."
             ) from e
-    return _mapdl
+        if _has_solver(mapdl):
+            _mapdl = mapdl
+            return _mapdl
+        try:
+            mapdl.exit()
+        except Exception:
+            pass
+        if attempt == 1:
+            log("Ansys started without a solver license. Ending old Ansys processes and retrying...")
+            log("ended: " + (", ".join(reset_ansys()) or "nothing"))
+    raise AnalysisError(
+        "Ansys started without a solver license twice. Close any open Ansys windows (Workbench, Mechanical), "
+        "or restart the computer to clear the stuck license, then try again."
+    )
 
 
 def _run_in_ansys(input_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -254,17 +306,42 @@ def _run_in_ansys(input_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]
     global _mapdl
     mapdl = _get_mapdl()
     try:
-        log("Ansys is running, sending the model and solving...")
         mapdl.clear()
+        n_lines = sum(1 for _ in open(input_path))
+        log(f"Ansys is running, loading the model ({n_lines} lines)...")
+        t0 = time.time()
         output = mapdl.input(str(input_path))
         if "*** ERROR ***" in str(output):
+            raise AnalysisError("Ansys reported an error while loading the model. Check the supports and loads.")
+        log(f"model loaded in {time.time() - t0:.1f} s, solving...")
+
+        # Print a line every 10 s while Ansys works, so a slow solve can be told from a stuck one.
+        done = threading.Event()
+
+        def heartbeat() -> None:
+            start = time.time()
+            while not done.wait(10):
+                log(f"  still solving... {time.time() - start:.0f} s")
+
+        threading.Thread(target=heartbeat, daemon=True).start()
+        t1 = time.time()
+        try:
+            mapdl.run("/SOLU")
+            mapdl.run("ANTYPE,STATIC")
+            solve_output = mapdl.run("SOLVE")
+            mapdl.run("FINISH")
+        finally:
+            done.set()
+        if "*** ERROR ***" in str(solve_output):
             raise AnalysisError("Ansys reported an error while solving. Check the supports and loads.")
-        log("solved, reading results...")
+        log(f"solved in {time.time() - t1:.1f} s, reading results...")
+        t2 = time.time()
         mapdl.post1()
         mapdl.set("LAST")
         nodes = np.array(mapdl.mesh.nnum, dtype=np.int64)
         stress = np.array(mapdl.post_processing.nodal_eqv_stress())
         displacement = np.array(mapdl.post_processing.nodal_displacement("NORM"))
+        log(f"results read in {time.time() - t2:.1f} s")
         return nodes, stress, displacement
     except AnalysisError:
         raise
@@ -283,6 +360,12 @@ def _run_in_ansys(input_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]
 
 def _nearest(points: np.ndarray, candidates: np.ndarray) -> np.ndarray:
     """For each point, the index of the closest candidate. Done in chunks to limit memory."""
+    try:
+        from scipy.spatial import cKDTree  # much faster than the brute-force loop below
+
+        return cKDTree(candidates).query(points)[1].astype(np.int64)
+    except ImportError:
+        pass
     out = np.empty(len(points), dtype=np.int64)
     for start in range(0, len(points), 2000):
         chunk = points[start : start + 2000]
@@ -317,7 +400,13 @@ def analyze(spec: dict, model: dict, solver=None) -> dict:
     # Every display face is needed too, so its colors can come from its own nodes.
     needed |= set(model["positions"].keys())
     log("meshing the part with gmsh...")
-    mesh = build_mesh(model["path"], model["faces"], needed)
+    # The user's mesh detail dial. Keep it in a safe range whatever the request says.
+    try:
+        wanted = int((spec.get("options") or {}).get("mesh_target_elements") or TARGET_ELEMENTS)
+    except (TypeError, ValueError):
+        wanted = TARGET_ELEMENTS
+    wanted = max(MIN_TARGET_ELEMENTS, min(MAX_TARGET_ELEMENTS, wanted))
+    mesh = build_mesh(model["path"], model["faces"], needed, wanted)
     log(f"mesh ready: {len(mesh['elements'])} elements, {len(mesh['node_tags'])} nodes")
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -390,6 +479,12 @@ def analyze(spec: dict, model: dict, solver=None) -> dict:
 
 def _distances_to(points: np.ndarray, targets: np.ndarray) -> np.ndarray:
     """For each point, the distance to the closest target point."""
+    try:
+        from scipy.spatial import cKDTree
+
+        return cKDTree(targets).query(points)[0]
+    except ImportError:
+        pass
     out = np.empty(len(points))
     for start in range(0, len(points), 2000):
         chunk = points[start : start + 2000]

@@ -9,6 +9,7 @@
 // The "Confirm and check design" button stays disabled until the `problems` list below is
 // empty, so a bad setup can never reach the solver.
 
+import { MESH_LEVELS } from "../data/meshLevels";
 import { useState } from "react";
 import { SAFETY_BAND } from "../data/safetyBand";
 import { CABIN_ATMOSPHERES, kPaToPsia, psiaToKPa } from "../data/cabinAtmospheres";
@@ -44,6 +45,8 @@ interface Props {
   onHover: (id: string | null) => void;
   minSafetyFactor: string;
   onMinSafetyFactor: (v: string) => void;
+  meshLevel: number;
+  onMeshLevel: (level: number) => void;
   onChangeLoadValue: (unit: "N" | "kg", value: number) => void;
   onChangeLoadUnit: (unit: "N" | "kg") => void;
   // The user picked a new direction for the force. Any non-zero vector is accepted; the
@@ -393,6 +396,27 @@ export function ConfirmationCard(p: Props) {
           />
         </label>
         <span className="tag">Acceptable band: {SAFETY_BAND.min} to {SAFETY_BAND.max}</span>
+      </div>
+
+      {/* The mesh detail dial: finer meshes show more stress detail but take longer. */}
+      <div className="group">
+        <div className="group-title">Mesh detail</div>
+        <input
+          type="range"
+          min={0}
+          max={MESH_LEVELS.length - 1}
+          step={1}
+          value={p.meshLevel}
+          aria-label="Mesh detail"
+          aria-valuetext={`${MESH_LEVELS[p.meshLevel].label}, about ${MESH_LEVELS[p.meshLevel].elements.toLocaleString()} elements`}
+          onChange={(e) => p.onMeshLevel(parseInt(e.target.value, 10))}
+        />
+        <span className="tag">
+          {MESH_LEVELS[p.meshLevel].label}, about {MESH_LEVELS[p.meshLevel].elements.toLocaleString()} elements
+        </span>
+        <p className="fineprint">
+          Finer meshes show more stress detail around holes and edges, but the analysis takes longer.
+        </p>
       </div>
 
       {/* Multiple-choice questions from the AI. An option marked unsupported is shown but

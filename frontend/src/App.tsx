@@ -17,6 +17,8 @@
 // React note: useState gives a value plus a function to change it. Calling that function
 // redraws the component with the new value. Never change a state value directly.
 
+import { exampleFor } from "./data/sampleExamples";
+import { DEFAULT_MESH_LEVEL, MESH_LEVELS } from "./data/meshLevels";
 import { SAFETY_BAND } from "./data/safetyBand";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { importStep, interpret, solve } from "./api";
@@ -76,6 +78,8 @@ export default function App() {
   // Typed text, so the field can be empty or half-typed.
   const [cabinPressureKPa, setCabinPressureKPa] = useState("");
   const [minSafetyFactor, setMinSafetyFactor] = useState(String(SAFETY_BAND.min));
+  // Which step of the mesh detail dial is chosen (an index into MESH_LEVELS).
+  const [meshLevel, setMeshLevel] = useState(DEFAULT_MESH_LEVEL);
   // The AI's multiple-choice questions, and the user's answers keyed by question id.
   const [clarifications, setClarifications] = useState<Clarification[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -240,7 +244,7 @@ export default function App() {
         sources: env.sources.map((s) => s.label),
       },
       criteria: { min_safety_factor: parseFloat(minSafetyFactor) },
-      options: {},
+      options: { mesh_target_elements: MESH_LEVELS[meshLevel].elements },
     };
     setPickMode(null);
     setStage("solving");
@@ -423,7 +427,7 @@ export default function App() {
   // True while waiting on the AI or the solver.
   const busy = stage === "interpreting" || stage === "solving";
   const canSend = !!geometry;
-  const example = geometry ? "Fix the bottom face and push down on the top face with 2000 N" : "";
+  const example = geometry ? exampleFor(geometry.name) : "";
 
   const placeholder = !geometry
     ? "Import a STEP file first"
@@ -484,6 +488,8 @@ export default function App() {
         busy={busy}
         minSafetyFactor={minSafetyFactor}
         onMinSafetyFactor={setMinSafetyFactor}
+        meshLevel={meshLevel}
+        onMeshLevel={setMeshLevel}
         onHover={setHoveredId}
         onChangeLoadValue={changeLoadValue}
         onChangeLoadUnit={changeLoadUnit}

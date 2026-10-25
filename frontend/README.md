@@ -29,7 +29,7 @@ The dev server forwards every `/api` request to port 8000 (`vite.config.ts`).
    The part is turned so its CAD +Z axis points up on screen (most CAD programs use Z as up),
    and the direction menu calls -Z "Down". This only changes the drawing. The analysis uses the
    file's own axes. You can change the load and its direction (six axis directions or a custom
-   vector), the material, the pressure, and the target safety factor. Faces can be picked by
+   vector), the material, the pressure, the target safety factor, and the mesh detail dial (coarse to finest, about 5,000 to 65,000 tetrahedra; finer shows more stress detail but runs longer). Faces can be picked by
    clicking the model or from the "choose from a list" menus, so the whole setup works from the
    keyboard.
 4. Confirm. The results show a pass, below target, or fail banner, the stress on the model, what

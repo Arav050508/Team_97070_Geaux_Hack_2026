@@ -117,10 +117,13 @@ export interface SpecCriteria {
 }
 
 /**
- * Extra solver options. There are none yet. The field stays in the spec so the contract with
- * the backend does not change when one is added.
+ * Extra solver options. mesh_target_elements is the number of tetrahedra the user's mesh
+ * detail dial asks for. The backend keeps it between 2,000 and 70,000 and stays under the
+ * Ansys Student node limit.
  */
-export type SpecOptions = Record<string, never>;
+export interface SpecOptions {
+  mesh_target_elements?: number;
+}
 
 /**
  * The full request sent to the solver: everything it needs to produce an answer.

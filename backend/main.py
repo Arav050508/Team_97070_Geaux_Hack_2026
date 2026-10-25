@@ -198,19 +198,47 @@ def _to_interpret_response(raw: dict, body: dict, model: dict) -> dict:
         "stated_cabin_pressure_kPa": raw.get("stated_cabin_pressure_kPa")
     }
 
-def interpret_with_gemini(body: dict, model: dict) -> dict:
-    """
-    Actual Gemini implementation for the interpreter. 
+_client = None
 
-    Requires GEMINI_MODEL to be set in the .env (defaults to gemini-3.8-flash)
-    """
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-    faces = [f for f in model["faces"] if f["candidate"]]
+def _round(v):
+    """Rounds numbers (and lists of numbers) to 4 significant digits for a shorter prompt."""
+    if isinstance(v, float):
+        return float(f"{v:.4g}")
+    if isinstance(v, list):
+        return [_round(x) for x in v]
+    return v
+
+
+def interpret_with_gemini(body: dict, model: dict, model_name: str) -> dict:
+    """
+    Actual Gemini implementation for the interpreter, using the Gemini model `model_name`.
+
+    interpret() below picks the model: GEMINI_MODEL first, then GEMINI_FALLBACK_MODEL.
+    """
+    # A short timeout makes a busy model fail fast, so the lighter one can answer instead of
+    # the user waiting a minute. The client is built once and reused.
+    global _client
+    if _client is None:
+        timeout_ms = int(float(os.environ.get("GEMINI_TIMEOUT_S") or 12) * 1000)
+        _client = genai.Client(
+            api_key=os.environ["GEMINI_API_KEY"],
+            http_options=types.HttpOptions(timeout=timeout_ms),
+        )
+    client = _client
+
+    # Send only what the model needs to choose faces, with rounded numbers. A shorter prompt
+    # is answered faster.
+    keep = ("id", "label", "kind", "area_m2", "centroid", "normal")
+    faces = [
+        {k: _round(f[k]) for k in keep if k in f}
+        for f in model["faces"]
+        if f["candidate"]
+    ]
 
     response = client.models.generate_content(
-        model=os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
-        contents="Request: {}\nFaces: {}".format(body["prompt"], json.dumps(faces)),
+        model=model_name,
+        contents="Request: {}\nFaces: {}".format(body["prompt"], json.dumps(faces, separators=(",", ":"))),
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,
             response_mime_type="application/json",
@@ -276,13 +304,20 @@ def interpret(body: dict) -> dict:
     model = MODELS.get(body.get("model_id") or "")
     if model is None:
         raise HTTPException(404, "The backend does not have that model. Import the STEP file again.")
-    try:
-        return interpret_with_gemini(body, model)
-    except Exception as e:
-        # Gemini is down, the key is missing, or it named a face that does not exist. Fall back
-        # to the fixed rules. They say plainly that they are rules and not the AI.
-        print(f"[interpret] Gemini failed, using the placeholder rules: {e}", flush=True)
-        return interpret_placeholder(body, model)
+    # Try the main model first. If it is busy or unavailable, try the lighter one. If both fail
+    # (or the key is missing), fall back to the fixed rules, which say plainly that they are rules.
+    main_model = os.environ.get("GEMINI_MODEL") or "gemini-3.8-flash"
+    light_model = os.environ.get("GEMINI_FALLBACK_MODEL") or "gemini-3.5-flash-lite"
+    for name in (main_model, light_model):
+        try:
+            result = interpret_with_gemini(body, model, name)
+            if name != main_model:
+                result["assistant_message"] += f" (Answered by {name} because {main_model} was unavailable.)"
+            return result
+        except Exception as e:
+            print(f"[interpret] {name} failed: {e}", flush=True)
+    print("[interpret] both Gemini models failed, using the placeholder rules", flush=True)
+    return interpret_placeholder(body, model)
 
 
 # ---------- solve ----------
