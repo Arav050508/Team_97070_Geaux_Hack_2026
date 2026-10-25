@@ -111,14 +111,14 @@ npm run dev
 
 ## Extras
 
-Two sample STEP parts are in `samples/`: a 100 mm square cantilever beam, which has a known textbook answer to check results against, and an L bracket with four holes. `samples/README.md` has the expected numbers.
+Four sample STEP parts are in `samples/`: a 100 mm square cantilever beam, which has a known textbook answer to check results against, an L bracket with four holes, a kettlebell, and a hex flange nut. `samples/README.md` has prompts to try and the expected numbers. Only the beam has a hand-calculated answer.
 
 We checked the Ansys path against beam theory with the cantilever beam (aluminum 6061-T6, fixed at one end, 20 N down on the other):
 
 | | Beam theory | SimForge with Ansys |
 | --- | --- | --- |
 | Tip deflection | 1.86 mm | 1.85 mm |
-| Stress near the fixed end | 96 MPa | 93 MPa away from the support (103 MPa right at its edge) |
+| Stress near the fixed end | 96 MPa | 93 MPa away from the support (109 MPa right at its edge, Fine mesh) |
 
 The safety factor is yield strength divided by peak von Mises stress. Below 1 is a fail, from 1 up to your target (1.4 by default) is below target, and the target or higher passes. A pass above 2 gets a note that the part could be lighter.
 
